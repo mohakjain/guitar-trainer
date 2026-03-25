@@ -1,19 +1,111 @@
 // ── Anchor-based pedagogy ────────────────────────────────────────────────────
 //
-// The core idea: teach every interval as a delta from an anchor you already know.
-// The 4 anchors every guitarist knows by shape:
-//   P4 (5 semi): 1 string down, same fret (that's how the guitar is tuned)
-//   P5 (7 semi): 1 string down, 2 frets back (power chord)
-//   Octave (12): 2 strings down, 2 frets up (octave box)
-//   Unison (0): same note, reference point
+// VISUAL-FIRST: Instead of just describing intervals in words, we show them
+// on the fretboard. When the shape phase triggers, we light up:
 //
-// For cross-string intervals, we find the nearest anchor on the fretboard
-// and describe the target as "anchor + N frets" or "anchor - N frets".
-// We also SHOW the anchor dot on the fretboard so the user can visualize.
+// 1. Ghost dots at ALL positions where this interval exists from the root
+//    (so you can see the full pattern — "here are all your octaves from D")
+// 2. The "standard" shape is labeled to teach the canonical form
+// 3. For non-anchor intervals, the reference anchor is also shown
+//
+// The text is secondary — the fretboard IS the teacher.
 
 import { SMIDI, FRET_COUNT, NOTE_NAMES, OPEN_STRINGS, INTERVALS } from './music.js';
 
-function findAnchorPosition(rootSi, rootFret, anchorSemitones) {
+// Find every position on the fretboard where this interval from root lands
+export function findAllVoicings(rootSi, rootFret, semitones) {
+  const targetMidi = SMIDI[rootSi] + rootFret + semitones;
+  const positions = [];
+
+  for (let si = 0; si < 6; si++) {
+    const f = targetMidi - SMIDI[si];
+    if (f >= 0 && f <= FRET_COUNT) {
+      positions.push({ si, fret: f });
+    }
+  }
+  return positions;
+}
+
+// Identify the "standard" voicing — the one that uses the canonical shape
+// Returns the index into the voicings array, or -1
+function findStandardVoicing(voicings, rootSi, rootFret, semitones) {
+  // For each interval, define what the "standard" cross-string shape looks like
+  // P4: 1 string down (higher si), same fret (adjusted for B-G)
+  // P5: 1 string down, 2 frets back (adjusted for B-G)
+  // Octave: 2 strings down, 2 frets up (adjusted for B-G)
+  // Others: closest to root in string distance, preferring standard direction
+
+  if (semitones === 0) {
+    // Unison: same position is standard
+    return voicings.findIndex(v => v.si === rootSi && v.fret === rootFret);
+  }
+
+  // For cross-string intervals, prefer the voicing closest to the root
+  // with smallest string distance, biased toward lower strings (higher si)
+  let bestIdx = -1;
+  let bestScore = Infinity;
+
+  voicings.forEach((v, i) => {
+    const strDist = Math.abs(v.si - rootSi);
+    const fretDist = Math.abs(v.fret - rootFret);
+    // Prefer 1-2 string distance, penalize same-string (less useful to learn)
+    const sameStr = v.si === rootSi ? 10 : 0;
+    const score = strDist * 3 + fretDist + sameStr;
+    if (score < bestScore) {
+      bestScore = score;
+      bestIdx = i;
+    }
+  });
+
+  return bestIdx;
+}
+
+export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
+  const strDiff = ivlSi - rootSi;
+  const fretDiff = ivlFret - rootFret;
+  const crossesBG = (Math.min(rootSi, ivlSi) <= 1 && Math.max(rootSi, ivlSi) >= 2);
+
+  // Find all voicings and determine which are "ghost" dots to show
+  const allVoicings = findAllVoicings(rootSi, rootFret, semitones);
+
+  // Filter out the one already shown as the main interval dot
+  const ghostDots = allVoicings
+    .filter(v => !(v.si === ivlSi && v.fret === ivlFret))
+    .map(v => {
+      const isStandard = isStandardShape(v, rootSi, rootFret, semitones);
+      return {
+        si: v.si,
+        fret: v.fret,
+        label: isStandard ? INTERVALS[semitones].short : '',
+        isStandard,
+      };
+    });
+
+  // For non-anchor intervals, also add the reference anchor dot
+  let anchorDot = null;
+  if (semitones >= 1 && semitones <= 4) {
+    anchorDot = findAnchorDot(rootSi, rootFret, 5, 'P4');
+  } else if (semitones === 6) {
+    anchorDot = findAnchorDot(rootSi, rootFret, 7, 'P5');
+  } else if (semitones >= 8 && semitones <= 11) {
+    anchorDot = findAnchorDot(rootSi, rootFret, 12, '8ve');
+  }
+
+  // Don't add anchor if it overlaps with an existing ghost dot or the interval
+  if (anchorDot) {
+    const overlaps = ghostDots.some(g => g.si === anchorDot.si && g.fret === anchorDot.fret)
+      || (anchorDot.si === ivlSi && anchorDot.fret === ivlFret)
+      || (anchorDot.si === rootSi && anchorDot.fret === rootFret);
+    if (overlaps) anchorDot = null;
+  }
+
+  const text = buildText(semitones, strDiff, fretDiff, crossesBG, anchorDot);
+  const hint = buildHint(semitones, crossesBG);
+
+  return { text, hint, ghostDots, anchorDot };
+}
+
+function findAnchorDot(rootSi, rootFret, anchorSemitones, label) {
   const targetMidi = SMIDI[rootSi] + rootFret + anchorSemitones;
   const candidates = [];
 
@@ -25,148 +117,109 @@ function findAnchorPosition(rootSi, rootFret, anchorSemitones) {
   }
 
   candidates.sort((a, b) => a.strDist - b.strDist);
-  return candidates[0] || null;
+  if (!candidates[0]) return null;
+
+  return { si: candidates[0].si, fret: candidates[0].fret, label };
 }
 
-export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
-  const strDiff = ivlSi - rootSi; // positive = lower pitched string
-  const fretDiff = ivlFret - rootFret;
+// Check if a voicing matches the "standard" shape for its interval
+function isStandardShape(voicing, rootSi, rootFret, semitones) {
+  const strDiff = voicing.si - rootSi;
+  const fretDiff = voicing.fret - rootFret;
+  const crossesBG = (Math.min(rootSi, voicing.si) <= 1 && Math.max(rootSi, voicing.si) >= 2);
 
-  const crossesBG = (Math.min(rootSi, ivlSi) <= 1 && Math.max(rootSi, ivlSi) >= 2);
+  // P4: 1 string down, same fret (or +1 if crossing B-G)
+  if (semitones === 5) {
+    return strDiff === 1 && Math.abs(fretDiff) <= 1;
+  }
+  // P5: 1 string down, 2 frets back (or 1 if crossing B-G)
+  if (semitones === 7) {
+    return strDiff === 1 && fretDiff <= 0 && fretDiff >= -2;
+  }
+  // Octave: 2 strings down, 2-3 frets up
+  if (semitones === 12) {
+    return strDiff === 2 && fretDiff >= 2 && fretDiff <= 3;
+  }
+  // For other intervals: prefer the closest cross-string voicing
+  if (Math.abs(strDiff) >= 1 && Math.abs(strDiff) <= 2) {
+    return true; // first cross-string hit is "standard enough"
+  }
+  return false;
+}
 
-  let text = '', hint = '', anchor = null;
-
-  // ── Same string: just count frets ──
+function buildText(semitones, strDiff, fretDiff, crossesBG, anchorDot) {
+  // Same string
   if (strDiff === 0) {
-    if (semitones === 0) {
-      text = `Same note, same spot.`;
-      hint = 'The simplest case — identical pitch.';
-    } else {
-      text = `Same string, <em>${semitones} fret${semitones>1?'s':''} up</em>.`;
-      if (semitones <= 3) hint = `${semitones} fret${semitones>1?'s':''} is easy to count.`;
-      else if (semitones === 5) hint = 'Same distance as the next open string (P4).';
-      else if (semitones === 7) hint = 'Same as jumping to the next string + 2 frets back.';
-      else if (semitones === 12) hint = 'Exactly at the 12th fret marker — one octave.';
-      else if (semitones < 7) hint = `That's a P5 (7 frets) minus ${7 - semitones}.`;
-      else hint = `That's an octave (12) minus ${12 - semitones} frets.`;
-    }
-    return { text, hint, anchor };
+    if (semitones === 0) return 'Same note, same spot.';
+    return `Same string, <em>${semitones} fret${semitones>1?'s':''} up</em>.`;
   }
 
-  // ── Unison across strings ──
-  if (semitones === 0) {
-    text = `Same pitch on a different string: <em>${Math.abs(strDiff)} string${Math.abs(strDiff)>1?'s':''} ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} fret${Math.abs(fretDiff)>1?'s':''} ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
-    hint = crossesBG
-      ? 'The B-G gap is 4 semitones (not 5), so the fret offset shifts by 1 when crossing that pair.'
-      : 'Each string pair is 5 semitones apart, so going 1 string lower = 5 frets higher for the same note.';
-    return { text, hint, anchor };
-  }
+  const strDesc = `${Math.abs(strDiff)} string${Math.abs(strDiff)>1?'s':''} ${strDiff > 0 ? 'lower' : 'higher'}`;
+  const fretDesc = fretDiff === 0 ? 'same fret' : `${Math.abs(fretDiff)} fret${Math.abs(fretDiff)>1?'s':''} ${fretDiff > 0 ? 'up' : 'down'}`;
 
-  // ── P4 (5 semitones) — this IS an anchor ──
+  // Anchor intervals describe themselves
   if (semitones === 5) {
     if (Math.abs(strDiff) === 1 && strDiff > 0) {
-      text = `<em>One string lower, ${fretDiff === 0 ? 'same fret' : Math.abs(fretDiff) + ' fret' + (Math.abs(fretDiff)>1?'s':'') + (fretDiff > 0 ? ' up' : ' down')}</em>. This is how the guitar is tuned — each string is a 4th apart.`;
-      hint = crossesBG
-        ? 'Exception: B→G is only 4 semitones, so the P4 needs +1 fret compensation.'
-        : 'This is the most natural interval on guitar. Same fret, next string down = perfect 4th.';
-    } else {
-      text = `<em>${Math.abs(strDiff)} strings ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
-      hint = 'The simplest P4 shape is 1 string lower, same fret.';
+      return `<em>${strDesc}, ${fretDesc}</em>. This is how the guitar is tuned — each string is a P4 apart.`;
     }
-    return { text, hint, anchor };
+    return `<em>${strDesc}, ${fretDesc}</em>. See the ghost dots for the standard P4 shape.`;
   }
-
-  // ── P5 (7 semitones) — this IS an anchor ──
   if (semitones === 7) {
     if (Math.abs(strDiff) === 1 && strDiff > 0) {
-      text = `<em>One string lower, ${Math.abs(fretDiff)} fret${Math.abs(fretDiff)>1?'s':''} ${fretDiff > 0 ? 'up' : 'down'}</em>. The <em>power chord</em> shape.`;
-      hint = crossesBG
-        ? 'Crossing B-G: power chord shifts — 1 string lower, 1 fret down (not 2).'
-        : 'The power chord: 1 string lower, 2 frets back. The most recognizable shape in rock guitar.';
-    } else {
-      text = `<em>${Math.abs(strDiff)} strings ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
-      hint = 'The simplest P5 is the power chord: 1 string lower, 2 frets back.';
+      return `<em>${strDesc}, ${fretDesc}</em>. The <em>power chord</em> shape.`;
     }
-    return { text, hint, anchor };
+    return `<em>${strDesc}, ${fretDesc}</em>. See the ghost dots for the power chord shape.`;
   }
-
-  // ── Octave (12) — this IS an anchor ──
   if (semitones === 12) {
     if (Math.abs(strDiff) === 2) {
-      text = `<em>2 strings lower, ${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>. The <em>octave box</em>.`;
-      hint = crossesBG
-        ? 'Crossing B-G: the octave box shifts to +3 frets instead of +2.'
-        : 'Classic octave shape: 2 strings down, 2 frets up. Use the fret markers to spot it fast.';
-    } else if (strDiff === 0) {
-      text = `Same string, <em>12 frets up</em> — right at the octave marker.`;
-      hint = '12th fret = octave. The double dot marker is your landmark.';
-    } else {
-      text = `<em>${Math.abs(strDiff)} strings ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
-      hint = 'The standard octave shape is 2 strings down, 2 frets up.';
+      return `<em>${strDesc}, ${fretDesc}</em>. The <em>octave box</em>.` +
+        (crossesBG ? ' Shifted +1 fret because of the B-G gap.' : '');
     }
-    return { text, hint, anchor };
+    return `<em>${strDesc}, ${fretDesc}</em>. See the ghost dots for the octave box shape.`;
+  }
+  if (semitones === 0) {
+    return `Same pitch: <em>${strDesc}, ${fretDesc}</em>.`;
   }
 
-  // ── Intervals 1-4: anchor to P4 ──
-  if (semitones >= 1 && semitones <= 4) {
-    const p4pos = findAnchorPosition(rootSi, rootFret, 5);
-    const absDelta = 5 - semitones;
-
-    if (p4pos && Math.abs(strDiff) <= 2) {
-      anchor = { si: p4pos.si, fret: p4pos.fret, label: 'P4' };
-      text = `Find the <span class="anchor-ref">P4</span> (1 string down, same fret), then go <em>${absDelta} fret${absDelta>1?'s':''} back</em>.`;
-
-      if (semitones === 4) hint = 'Major 3rd = P4 minus 1 fret. One fret below where you\'d play a 4th.';
-      else if (semitones === 3) hint = 'Minor 3rd = P4 minus 2 frets. Two frets below the 4th — think "power chord on the same string pair but 1 fret further back."';
-      else if (semitones === 2) hint = 'Major 2nd = P4 minus 3 frets. A whole step — easy to count on one string, trickier across strings.';
-      else if (semitones === 1) hint = 'Minor 2nd = P4 minus 4 frets. Maximum tension — practically touching.';
-    } else {
-      text = describeGeometry(strDiff, fretDiff);
-      hint = `${INTERVALS[semitones].name}: ${semitones} semitones. On one string, that's ${semitones} frets up.`;
+  // Non-anchor intervals: reference the anchor
+  if (anchorDot) {
+    if (semitones >= 1 && semitones <= 4) {
+      const delta = 5 - semitones;
+      return `<em>${strDesc}, ${fretDesc}</em>. That's <em>${delta} fret${delta>1?'s':''} back</em> from the <span class="anchor-ref">P4</span>.`;
     }
-    return { text, hint, anchor };
+    if (semitones === 6) {
+      return `<em>${strDesc}, ${fretDesc}</em>. One fret back from the <span class="anchor-ref">P5</span>, or one fret past the P4.`;
+    }
+    if (semitones >= 8 && semitones <= 11) {
+      const delta = 12 - semitones;
+      return `<em>${strDesc}, ${fretDesc}</em>. That's <em>${delta} fret${delta>1?'s':''} back</em> from the <span class="anchor-ref">octave</span>.`;
+    }
   }
 
-  // ── Tritone (6): between P4 and P5 ──
-  if (semitones === 6) {
-    const p5pos = findAnchorPosition(rootSi, rootFret, 7);
-    if (p5pos) {
-      anchor = { si: p5pos.si, fret: p5pos.fret, label: 'P5' };
-      text = `Find the <span class="anchor-ref">P5</span> (power chord shape), then go <em>1 fret back</em>. Or find the <span class="anchor-ref">P4</span> and go <em>1 fret forward</em>.`;
-      hint = 'The tritone sits exactly between the 4th and 5th — 1 fret from each. The most unstable interval.';
-    } else {
-      text = describeGeometry(strDiff, fretDiff) + ' One fret short of a power chord.';
-      hint = 'Tritone = P5 - 1 fret = P4 + 1 fret.';
-    }
-    return { text, hint, anchor };
-  }
-
-  // ── Intervals 8-11: anchor to octave ──
-  if (semitones >= 8 && semitones <= 11) {
-    const octPos = findAnchorPosition(rootSi, rootFret, 12);
-    const delta = 12 - semitones;
-
-    if (octPos) {
-      anchor = { si: octPos.si, fret: octPos.fret, label: '8ve' };
-      text = `Find the <span class="anchor-ref">octave</span> (2 strings down, 2 frets up), then go <em>${delta} fret${delta>1?'s':''} back</em>.`;
-
-      if (semitones === 11) hint = 'Major 7th = 1 fret short of the octave. Maximum leading-tone tension — wants to resolve up.';
-      else if (semitones === 10) hint = 'Minor 7th = 2 frets short of the octave. The dominant 7th sound — bluesy, expectant.';
-      else if (semitones === 9) hint = 'Major 6th = 3 frets short of the octave. Warm and open. It\'s also an inverted minor 3rd.';
-      else if (semitones === 8) hint = 'Minor 6th = 4 frets short of the octave. Dark and wide. It\'s an inverted major 3rd.';
-    } else {
-      text = describeGeometry(strDiff, fretDiff);
-      hint = `${INTERVALS[semitones].name} = octave minus ${delta} frets.`;
-    }
-    return { text, hint, anchor };
-  }
-
-  // Fallback
-  text = describeGeometry(strDiff, fretDiff);
-  hint = `${semitones} semitone${semitones!==1?'s':''} from the root.`;
-  return { text, hint, anchor };
+  return `<em>${strDesc}, ${fretDesc}</em>.`;
 }
 
-function describeGeometry(strDiff, fretDiff) {
-  return `<em>${Math.abs(strDiff)} string${Math.abs(strDiff)>1?'s':''} ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} fret${Math.abs(fretDiff)>1?'s':''} ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
+function buildHint(semitones, crossesBG) {
+  const hints = {
+    0: 'Each string pair is 5 semitones apart (4 for B-G).',
+    1: 'Minor 2nd — maximum tension. 1 fret on the same string.',
+    2: 'Major 2nd — whole step. 2 frets on the same string.',
+    3: 'Minor 3rd — the sad/dark color. P4 minus 2 frets.',
+    4: 'Major 3rd — the bright/happy color. P4 minus 1 fret.',
+    5: crossesBG
+      ? 'B→G is 4 semitones (not 5), so the shape shifts 1 fret when crossing that pair.'
+      : 'The most natural interval — same fret, next string down.',
+    6: 'Tritone — exactly between P4 and P5. 1 fret from each.',
+    7: crossesBG
+      ? 'Crossing B-G: power chord shifts to 1 fret back instead of 2.'
+      : 'The power chord: 1 string down, 2 frets back.',
+    8: 'Minor 6th — inverted major 3rd. Octave minus 4 frets.',
+    9: 'Major 6th — inverted minor 3rd. Octave minus 3 frets.',
+    10: 'Minor 7th — bluesy, expectant. Octave minus 2 frets.',
+    11: 'Major 7th — leading tone tension. Octave minus 1 fret.',
+    12: crossesBG
+      ? 'Crossing B-G: octave box is 2 strings down, 3 frets up (not 2).'
+      : 'Octave box: 2 strings down, 2 frets up.',
+  };
+  return hints[semitones] || `${semitones} semitones from the root.`;
 }

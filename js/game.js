@@ -166,11 +166,20 @@ function nextInterval() {
     els.shapeText.innerHTML = shapeInfo.text;
     els.shapeHint.textContent = shapeInfo.hint;
 
-    if (shapeInfo.anchor) {
-      showDot(shapeInfo.anchor.si, shapeInfo.anchor.fret, 'anchor', shapeInfo.anchor.label);
+    // Show ghost dots — all other voicings of this interval from root
+    if (shapeInfo.ghostDots) {
+      shapeInfo.ghostDots.forEach(g => {
+        const type = g.isStandard ? 'ghost-std' : 'ghost';
+        showDot(g.si, g.fret, type, g.label);
+      });
     }
 
-    drawConnector(pair.root.si, pair.root.fret, pair.interval.si, pair.interval.fret, shapeInfo.anchor);
+    // Show anchor reference dot (P4/P5/octave used as reference)
+    if (shapeInfo.anchorDot) {
+      showDot(shapeInfo.anchorDot.si, shapeInfo.anchorDot.fret, 'anchor', shapeInfo.anchorDot.label);
+    }
+
+    drawConnector(pair.root.si, pair.root.fret, pair.interval.si, pair.interval.fret, shapeInfo.anchorDot);
   }, dur * 0.75);
 
   // Progress bar
