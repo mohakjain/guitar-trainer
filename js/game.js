@@ -143,7 +143,7 @@ function nextInterval() {
     els.phaseDotReveal.className = 'phase-dot active-reveal';
     els.answerCard.className = 'answer-card revealed';
     els.intervalName.textContent = pair.info.name;
-    els.intervalSemi.textContent = pair.semitones + ' semitone' + (pair.semitones !== 1 ? 's' : '');
+    els.intervalSemi.textContent = pair.semitones + ' semitone' + (pair.semitones !== 1 ? 's' : '') + ' · ' + pair.info.sound;
     els.ansHint.textContent = '';
     // Replay both together
     playNote(pair.root.si, pair.root.fret, 0, 1.8);

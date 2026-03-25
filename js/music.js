@@ -16,19 +16,19 @@ export const FRET_COUNT = 12;
 export const FRET_MARKERS = [3, 5, 7, 9, 12];
 
 export const INTERVALS = {
-  0:  { name:'Unison',       short:'U',  semitones:0  },
-  1:  { name:'Minor 2nd',    short:'m2', semitones:1  },
-  2:  { name:'Major 2nd',    short:'M2', semitones:2  },
-  3:  { name:'Minor 3rd',    short:'m3', semitones:3  },
-  4:  { name:'Major 3rd',    short:'M3', semitones:4  },
-  5:  { name:'Perfect 4th',  short:'P4', semitones:5  },
-  6:  { name:'Tritone',      short:'TT', semitones:6  },
-  7:  { name:'Perfect 5th',  short:'P5', semitones:7  },
-  8:  { name:'Minor 6th',    short:'m6', semitones:8  },
-  9:  { name:'Major 6th',    short:'M6', semitones:9  },
-  10: { name:'Minor 7th',    short:'m7', semitones:10 },
-  11: { name:'Major 7th',    short:'M7', semitones:11 },
-  12: { name:'Octave',       short:'8ve',semitones:12 },
+  0:  { name:'Unison',       short:'U',  semitones:0,  sound:'same note' },
+  1:  { name:'Minor 2nd',    short:'m2', semitones:1,  sound:'tense, grating' },
+  2:  { name:'Major 2nd',    short:'M2', semitones:2,  sound:'bright step' },
+  3:  { name:'Minor 3rd',    short:'m3', semitones:3,  sound:'sad, dark' },
+  4:  { name:'Major 3rd',    short:'M3', semitones:4,  sound:'happy, sweet' },
+  5:  { name:'Perfect 4th',  short:'P4', semitones:5,  sound:'open, hymn-like' },
+  6:  { name:'Tritone',      short:'TT', semitones:6,  sound:'restless, evil' },
+  7:  { name:'Perfect 5th',  short:'P5', semitones:7,  sound:'strong, hollow' },
+  8:  { name:'Minor 6th',    short:'m6', semitones:8,  sound:'dark, wide' },
+  9:  { name:'Major 6th',    short:'M6', semitones:9,  sound:'warm, nostalgic' },
+  10: { name:'Minor 7th',    short:'m7', semitones:10, sound:'bluesy, expectant' },
+  11: { name:'Major 7th',    short:'M7', semitones:11, sound:'dreamy, tense' },
+  12: { name:'Octave',       short:'8ve',semitones:12, sound:'same, higher' },
 };
 
 export const MODE_INTERVALS = {
