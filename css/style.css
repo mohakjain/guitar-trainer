@@ -218,6 +218,15 @@ h1 {
   font-size: 0.5rem;
 }
 .note-dot.ghost-std.visible { opacity: 0.7; transform: scale(0.9); }
+/* Relay dot: the root note relocated to the interval's string (stepping stone) */
+.note-dot.relay {
+  background: var(--root-color);
+  color: #1a1a1d;
+  opacity: 0; transform: scale(0);
+  border: 2px dashed var(--root-color);
+  font-size: 0.45rem;
+}
+.note-dot.relay.visible { opacity: 0.55; transform: scale(0.85); }
 .note-dot.visible { opacity: 1; transform: scale(1); }
 
 /* SVG connector overlay */

@@ -1,12 +1,13 @@
 // ── Anchor-based pedagogy ────────────────────────────────────────────────────
 //
-// VISUAL-FIRST: The fretboard is the teacher. When the shape phase triggers:
-// 1. Ghost dots show all other positions where this interval note exists
-// 2. Anchor dots show reference points (P4/P5/octave) for non-anchor intervals
-// 3. Text gives a short, direct explanation — no fluff
+// VISUAL-FIRST teaching strategy:
+//
+// 1. Ghost dots show all positions where this interval note exists
+// 2. Anchor dots show reference points (P4/P5/octave)
+// 3. For long-distance voicings: show the "unison relay" —
+//    relocate the root to the target string, then count frets from there
 //
 // String indexing: 0=e (highest pitch) ... 5=E (lowest pitch)
-// So going toward higher pitch = lower index = negative strDiff
 
 import { SMIDI, FRET_COUNT, NOTE_NAMES, OPEN_STRINGS, INTERVALS } from './music.js';
 
@@ -23,25 +24,27 @@ export function findAllVoicings(rootSi, rootFret, semitones) {
   return positions;
 }
 
-// Does this pair of strings cross the B-G boundary?
+// Does crossing between these strings go over the B(1)-G(2) boundary?
 function crossesBG(si1, si2) {
   return (Math.min(si1, si2) <= 1 && Math.max(si1, si2) >= 2);
 }
 
-// Compute how many semitones between two adjacent strings
-// Standard tuning: all gaps are 5 except B(1)-G(2) which is 4
-function stringGap(siFrom, siTo) {
-  // Total semitones between two strings
-  return Math.abs(SMIDI[siFrom] - SMIDI[siTo]);
+// Find the root note on a specific string (unison)
+function findRootOnString(rootSi, rootFret, targetSi) {
+  const rootMidi = SMIDI[rootSi] + rootFret;
+  const f = rootMidi - SMIDI[targetSi];
+  if (f >= 0 && f <= FRET_COUNT) return f;
+  return null;
 }
 
 export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
-  const strDiff = ivlSi - rootSi; // negative = toward higher pitch
+  const strDiff = ivlSi - rootSi;
   const fretDiff = ivlFret - rootFret;
   const absStr = Math.abs(strDiff);
+  const absFret = Math.abs(fretDiff);
   const hasBG = crossesBG(rootSi, ivlSi);
 
-  // Ghost dots: all other voicings of this interval note
+  // Ghost dots: all other voicings of the interval note
   const allVoicings = findAllVoicings(rootSi, rootFret, semitones);
   const ghostDots = allVoicings
     .filter(v => !(v.si === ivlSi && v.fret === ivlFret))
@@ -49,17 +52,10 @@ export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
       si: v.si,
       fret: v.fret,
       label: INTERVALS[semitones].short,
-      isStandard: false, // we'll mark standard ones below
+      isStandard: isStandardGhost(v, rootSi, rootFret, semitones),
     }));
 
-  // Mark the "standard shape" ghost: the adjacent-string voicing closest to root
-  ghostDots.forEach(g => {
-    const sd = Math.abs(g.si - rootSi);
-    if (semitones === 12 && sd === 2) g.isStandard = true;
-    else if (semitones !== 12 && sd === 1) g.isStandard = true;
-  });
-
-  // For non-anchor intervals, find the anchor reference dot
+  // Anchor dot for non-anchor intervals
   let anchorDot = null;
   if (semitones >= 1 && semitones <= 4) {
     anchorDot = findAnchorDot(rootSi, rootFret, 5, 'P4');
@@ -69,7 +65,7 @@ export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
     anchorDot = findAnchorDot(rootSi, rootFret, 12, '8ve');
   }
 
-  // Don't show anchor if it overlaps with existing dots
+  // Remove anchor if it overlaps
   if (anchorDot) {
     const overlaps = ghostDots.some(g => g.si === anchorDot.si && g.fret === anchorDot.fret)
       || (anchorDot.si === ivlSi && anchorDot.fret === ivlFret)
@@ -77,10 +73,27 @@ export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
     if (overlaps) anchorDot = null;
   }
 
-  const text = buildText(semitones, absStr, strDiff, fretDiff, hasBG);
+  // Unison relay: when the interval spans a long distance across strings,
+  // show where the ROOT lives on the SAME string as the interval note.
+  // This teaches "relocate, then count frets."
+  let relayDot = null;
+  const isLongDistance = absStr >= 1 && absFret > 4;
+  const isNonTrivial = semitones > 0 && semitones < 12;
+
+  if (isLongDistance && isNonTrivial) {
+    const relayFret = findRootOnString(rootSi, rootFret, ivlSi);
+    if (relayFret !== null && relayFret !== rootFret) {
+      // Don't show if it's the same position as interval or root
+      if (!(relayFret === ivlFret && ivlSi === ivlSi)) {
+        relayDot = { si: ivlSi, fret: relayFret, label: NOTE_NAMES[(SMIDI[rootSi] + rootFret) % 12] };
+      }
+    }
+  }
+
+  const text = buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi, rootFret, ivlSi, ivlFret);
   const hint = buildHint(semitones, hasBG);
 
-  return { text, hint, ghostDots, anchorDot };
+  return { text, hint, ghostDots, anchorDot, relayDot };
 }
 
 function findAnchorDot(rootSi, rootFret, anchorSemitones, label) {
@@ -97,31 +110,38 @@ function findAnchorDot(rootSi, rootFret, anchorSemitones, label) {
   return { si: candidates[0].si, fret: candidates[0].fret, label };
 }
 
-function buildText(semitones, absStr, strDiff, fretDiff, hasBG) {
+function isStandardGhost(v, rootSi, rootFret, semitones) {
+  const sd = Math.abs(v.si - rootSi);
+  if (semitones === 12) return sd === 2;
+  if (semitones === 5 || semitones === 7) return sd === 1;
+  return sd === 1 && Math.abs(v.fret - rootFret) <= 3;
+}
+
+function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi, rootFret, ivlSi, ivlFret) {
+  const absFret = Math.abs(fretDiff);
+
   // Same string — simple
   if (absStr === 0) {
     if (semitones === 0) return 'Same note, same position.';
-    return `Same string, <em>${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
+    return `Same string, <em>${absFret} frets ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
   }
 
   const bgNote = hasBG ? ' (shifted 1 fret for B-G tuning)' : '';
 
   // ── P4 ──
   if (semitones === 5) {
-    if (absStr === 1) {
-      if (Math.abs(fretDiff) <= 1) {
-        return `One string, ${fretDiff === 0 ? 'same fret' : '1 fret up'}. <em>This is the standard P4 shape</em> — how the guitar is tuned.${bgNote}`;
-      }
+    if (absStr === 1 && absFret <= 1) {
+      return `One string, ${fretDiff === 0 ? 'same fret' : '1 fret up'}. <em>This is the standard P4 shape</em> — how the guitar is tuned.${bgNote}`;
     }
-    return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>. Standard P4 = next string, same fret.`;
+    return withRelay(`Standard P4 = next string, same fret.`, relayDot, semitones);
   }
 
   // ── P5 ──
   if (semitones === 7) {
-    if (absStr === 1 && Math.abs(fretDiff) <= 2) {
+    if (absStr === 1 && absFret <= 2) {
       return `One string, ${describeFretDiff(fretDiff)}. <em>This is the power chord shape.</em>${bgNote}`;
     }
-    return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>. Standard P5 = next string, 2 frets back (power chord).`;
+    return withRelay(`Standard P5 = next string, 2 frets back (power chord).`, relayDot, semitones);
   }
 
   // ── Octave ──
@@ -129,10 +149,7 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG) {
     if (absStr === 2 && fretDiff >= 2 && fretDiff <= 3) {
       return `2 strings, ${fretDiff} frets up. <em>This is the octave box.</em>${bgNote}`;
     }
-    if (absStr === 0) {
-      return `Same string, 12 frets up — at the octave marker.`;
-    }
-    return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>. Standard octave = 2 strings, 2 frets up.`;
+    return withRelay(`Standard octave = 2 strings, 2 frets up.`, relayDot, semitones);
   }
 
   // ── Unison ──
@@ -140,24 +157,38 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG) {
     return `Same pitch, different string: <em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>.`;
   }
 
-  // ── Intervals 1-4: reference P4 ──
-  if (semitones >= 1 && semitones <= 4) {
-    const delta = 5 - semitones;
-    return `<em>${delta} fret${delta>1?'s':''} back</em> from the <span class="anchor-ref">P4</span> (next string, same fret). The ghost dots show where else this note lives.`;
+  // ── Non-anchor intervals with relay ──
+  if (relayDot) {
+    const rootNote = NOTE_NAMES[(SMIDI[rootSi] + rootFret) % 12];
+    const fretsBetween = Math.abs(ivlFret - relayDot.fret);
+    const dir = ivlFret > relayDot.fret ? 'up' : 'back';
+    return `${rootNote} is also at <span class="anchor-ref">fret ${relayDot.fret}</span> on the same string — from there it's just <em>${fretsBetween} frets ${dir}</em>.`;
   }
 
-  // ── Tritone ──
+  // ── Close-position non-anchor intervals ──
+  if (semitones >= 1 && semitones <= 4) {
+    const delta = 5 - semitones;
+    return `<em>${delta} fret${delta>1?'s':''} back</em> from the <span class="anchor-ref">P4</span> (next string, same fret).`;
+  }
+
   if (semitones === 6) {
     return `1 fret past the <span class="anchor-ref">P4</span>, or 1 fret before the <span class="anchor-ref">P5</span>. Right between them.`;
   }
 
-  // ── Intervals 8-11: reference octave ──
   if (semitones >= 8 && semitones <= 11) {
     const delta = 12 - semitones;
-    return `<em>${delta} fret${delta>1?'s':''} back</em> from the <span class="anchor-ref">octave</span> (2 strings, 2 frets up). The ghost dots show where else this note lives.`;
+    return `<em>${delta} fret${delta>1?'s':''} back</em> from the <span class="anchor-ref">octave</span> (2 strings, 2 frets up).`;
   }
 
   return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>.`;
+}
+
+// When showing a non-standard voicing, add relay context if available
+function withRelay(standardDesc, relayDot, semitones) {
+  if (relayDot) {
+    return `${standardDesc} Here, find the root at <span class="anchor-ref">fret ${relayDot.fret}</span> on the same string first.`;
+  }
+  return standardDesc;
 }
 
 function describeFretDiff(fretDiff) {

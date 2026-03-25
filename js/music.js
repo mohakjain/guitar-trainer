@@ -46,6 +46,51 @@ export function rnd(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// Pick a candidate weighted toward natural guitar voicings
+function pickWeightedCandidate(cands, rootSi, rootFret, semitones) {
+  if (cands.length === 1) return cands[0];
+
+  const scored = cands.map(c => {
+    const strDist = Math.abs(c.si - rootSi);
+    const fretDist = Math.abs(c.fret - rootFret);
+    let weight = 1;
+
+    // Same string: great for small intervals, ok for others
+    if (strDist === 0) {
+      if (semitones <= 4) weight = 10;      // very natural
+      else if (semitones <= 7) weight = 3;   // playable
+      else weight = 1;                       // long reach
+    }
+    // Adjacent string (1 string away)
+    else if (strDist === 1) {
+      if (fretDist <= 3) weight = 8;         // compact shape, easy to see
+      else if (fretDist <= 5) weight = 3;    // still reasonable
+      else weight = 1;                       // awkward stretch
+    }
+    // 2 strings away — good for octaves and larger intervals
+    else if (strDist === 2) {
+      if (semitones === 12 && fretDist <= 3) weight = 10; // octave box
+      else if (fretDist <= 4) weight = 4;
+      else weight = 1;
+    }
+    // 3+ strings — unusual, low weight
+    else {
+      weight = 1;
+    }
+
+    return { candidate: c, weight };
+  });
+
+  // Weighted random selection
+  const totalWeight = scored.reduce((sum, s) => sum + s.weight, 0);
+  let r = Math.random() * totalWeight;
+  for (const s of scored) {
+    r -= s.weight;
+    if (r <= 0) return s.candidate;
+  }
+  return scored[scored.length - 1].candidate;
+}
+
 // Generate a random root + interval pair for the given mode
 export function generatePair(mode) {
   const allowed = MODE_INTERVALS[mode];
@@ -63,7 +108,11 @@ export function generatePair(mode) {
 
   if (!cands.length) return generatePair(mode);
 
-  const target = rnd(cands);
+  // Weight candidates toward natural voicings:
+  // - Same string for small intervals (easy to see/play)
+  // - Adjacent strings within a few frets for medium intervals
+  // - Standard cross-string shapes for P4/P5/octave
+  const target = pickWeightedCandidate(cands, rSi, rFret, semi);
   return {
     root:     { si: rSi, fret: rFret, note: noteName(rSi, rFret) },
     interval: { si: target.si, fret: target.fret, note: noteName(target.si, target.fret) },

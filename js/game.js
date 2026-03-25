@@ -179,6 +179,11 @@ function nextInterval() {
       showDot(shapeInfo.anchorDot.si, shapeInfo.anchorDot.fret, 'anchor', shapeInfo.anchorDot.label);
     }
 
+    // Show relay dot — the root relocated to the interval's string
+    if (shapeInfo.relayDot) {
+      showDot(shapeInfo.relayDot.si, shapeInfo.relayDot.fret, 'relay', shapeInfo.relayDot.label);
+    }
+
     drawConnector(pair.root.si, pair.root.fret, pair.interval.si, pair.interval.fret, shapeInfo.anchorDot);
   }, dur * 0.75);
 
