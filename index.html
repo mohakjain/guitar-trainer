@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Fretboard Ears</title>
+<title>Interval Trainer</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<h1>Fretboard Ears</h1>
-<p class="subtitle">interval trainer · hands-free</p>
+<h1>Interval Trainer</h1>
+<p class="subtitle">hands-free ear training</p>
 
 <button class="settings-toggle" id="settingsToggle" onclick="toggleSettings()">
   <span>Settings</span>
@@ -17,11 +17,11 @@
 </button>
 <div class="settings" id="settingsPanel">
   <div class="setting-group">
-    <label>Interval Set</label>
+    <label>Interval set</label>
     <select id="modeSelect">
       <option value="basic">Basic (unison, 4th, 5th, octave)</option>
-      <option value="all">All Intervals</option>
-      <option value="thirds">Thirds &amp; Sixths</option>
+      <option value="all">All intervals</option>
+      <option value="thirds">Thirds &amp; sixths</option>
       <option value="tense">Tense (2nd, 7th, tritone)</option>
     </select>
   </div>
@@ -82,15 +82,16 @@
 </div>
 
 <div class="legend">
-  <span><span class="ldot" style="background:var(--dot-root)"></span>Root</span>
-  <span><span class="ldot" style="background:var(--dot-interval)"></span>Interval</span>
-  <span><span class="ldot" style="background:var(--accent3);opacity:0.7"></span>Anchor</span>
+  <span><span class="ldot" style="background:var(--root-color)"></span>Root</span>
+  <span><span class="ldot" style="background:var(--ivl-color)"></span>Interval</span>
+  <span><span class="ldot" style="background:var(--ivl-color);opacity:0.4;border:1px solid var(--ivl-color)"></span>Other voicings</span>
+  <span><span class="ldot" style="background:var(--anchor-color);opacity:0.8"></span>Anchor</span>
 </div>
 
 <div class="controls">
-  <button class="btn primary" id="playBtn" onclick="togglePlay()">▶ Play</button>
+  <button class="btn primary" id="playBtn" onclick="togglePlay()">Play</button>
   <button class="btn" id="skipBtn" onclick="nextInterval()" disabled>Skip</button>
-  <button class="btn danger" id="stopBtn" onclick="stopAll()" style="display:none">■ Stop</button>
+  <button class="btn danger" id="stopBtn" onclick="stopAll()" style="display:none">Stop</button>
 </div>
 
 <script type="module" src="js/game.js"></script>
