@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Fretboard Ears</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111;
+    --border: #1e1e1e;
+    --accent: #e8ff47;
+    --accent2: #ff6b35;
+    --accent3: #47c4ff;
+    --text: #f0f0f0;
+    --muted: #484848;
+    --fret-bg: #0e0b07;
+    --string-color: #b8954e;
+    --dot-root: #e8ff47;
+    --dot-interval: #ff6b35;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 10px 32px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at 50% -10%, #1c2200 0%, transparent 60%),
+      radial-gradient(ellipse at 90% 110%, #1a0800 0%, transparent 50%);
+    pointer-events: none; z-index: 0;
+  }
+
+  * { position: relative; z-index: 1; }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2rem, 7vw, 3.5rem);
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 2px;
+  }
+  .subtitle {
+    font-size: 0.52rem; color: var(--muted);
+    letter-spacing: 0.3em; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  /* SETTINGS (collapsible) */
+  .settings-toggle {
+    width: 100%; max-width: 700px;
+    background: none; border: 1px solid var(--border);
+    color: var(--muted); font-family: 'Space Mono', monospace;
+    font-size: 0.5rem; letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 8px; cursor: pointer; border-radius: 2px;
+    margin-bottom: 0; transition: all 0.15s;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .settings-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .settings-toggle .arrow { transition: transform 0.2s; }
+  .settings-toggle.open .arrow { transform: rotate(180deg); }
+
+  .settings {
+    width: 100%; max-width: 700px;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; padding: 10px 0;
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+  }
+  .settings.open { max-height: 200px; padding: 10px 0; }
+  .setting-group label {
+    display: block; font-size: 0.48rem; color: var(--muted);
+    letter-spacing: 0.28em; text-transform: uppercase; margin-bottom: 4px;
+  }
+  .setting-group select {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); font-family: 'Space Mono', monospace;
+    font-size: 0.72rem; padding: 10px; border-radius: 2px; appearance: none;
+  }
+  .speed-row { display: flex; align-items: center; gap: 10px; }
+  .speed-row input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; height: 44px; }
+  .speed-val { font-size: 0.68rem; color: var(--accent); min-width: 26px; text-align: right; }
+
+  /* PROGRESS */
+  .progress-wrap { width: 100%; max-width: 700px; margin: 10px 0; }
+  .state-label {
+    font-size: 0.52rem; color: var(--muted);
+    letter-spacing: 0.22em; text-transform: uppercase;
+    text-align: center; min-height: 15px; margin-bottom: 5px;
+  }
+  .progress-bar-bg {
+    width: 100%; height: 3px; background: var(--border);
+    border-radius: 2px; overflow: visible; position: relative;
+  }
+  .progress-bar-fill {
+    height: 100%; background: var(--accent);
+    border-radius: 2px; width: 0%; transition: width 0.1s linear;
+  }
+  .progress-bar-bg::before,
+  .progress-bar-bg::after {
+    content: ''; position: absolute; top: -3px; bottom: -3px;
+    width: 1px; background: #383838;
+  }
+  .progress-bar-bg::before { left: 50%; }
+  .progress-bar-bg::after  { left: 75%; }
+
+  .progress-info {
+    display: flex; justify-content: space-between;
+    margin-top: 5px; font-size: 0.5rem; color: var(--muted); letter-spacing: 0.12em;
+  }
+  .phase-indicators {
+    display: flex; gap: 12px; justify-content: center;
+    margin-top: 6px; font-size: 0.42rem; color: var(--muted); letter-spacing: 0.15em;
+  }
+  .phase-dot {
+    display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; margin-right: 4px; vertical-align: middle;
+    background: var(--muted); transition: background 0.3s;
+  }
+  .phase-dot.active-reveal { background: var(--accent2); }
+  .phase-dot.active-shape  { background: var(--accent3); }
+
+  /* FRETBOARD */
+  .fretboard-wrap {
+    width: 100%; max-width: 700px;
+    background: var(--fret-bg);
+    border: 1px solid #1e1508;
+    border-radius: 4px;
+    padding: 12px 6px 18px;
+    margin-bottom: 10px;
+    box-shadow: 0 0 40px rgba(232,255,71,0.04), inset 0 1px 0 #261d0c;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fret-labels {
+    display: flex; margin-left: 28px; margin-bottom: 4px;
+  }
+  .fret-label {
+    flex: 1; text-align: center;
+    font-size: 0.44rem; color: var(--muted); letter-spacing: 0.04em;
+  }
+
+  .fb-inner { position: relative; }
+
+  .string-row {
+    display: flex; align-items: center;
+    height: 30px; position: relative;
+  }
+  .string-name {
+    width: 28px; text-align: right; padding-right: 6px;
+    font-size: 0.6rem; color: var(--string-color);
+    font-weight: 700; letter-spacing: 0.04em; flex-shrink: 0;
+  }
+  .frets { display: flex; flex: 1; position: relative; }
+  .fret-cell {
+    flex: 1; height: 30px;
+    border-right: 2px solid #2a1e0e;
+    position: relative; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .fret-cell:first-child { border-left: 5px solid #888; }
+
+  .string-row::after {
+    content: ''; position: absolute;
+    left: 28px; right: 0; top: 50%;
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--string-color) 0%, #6a4a1e 100%);
+    opacity: 0.5; pointer-events: none; z-index: 0;
+  }
+
+  .fret-marker {
+    position: absolute; bottom: -12px; left: 50%;
+    transform: translateX(-50%);
+    width: 5px; height: 5px; border-radius: 50%; background: #252525;
+  }
+
+  .note-dot {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.42rem; font-weight: 700;
+    z-index: 4; position: relative;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
+    opacity: 0; transform: scale(0);
+  }
+  .note-dot.root     { background: var(--dot-root);     color:#000; box-shadow: 0 0 14px rgba(232,255,71,0.7); }
+  .note-dot.ivl      { background: var(--dot-interval); color:#000; box-shadow: 0 0 14px rgba(255,107,53,0.7); }
+  .note-dot.anchor   { background: var(--accent3); color:#000; box-shadow: 0 0 14px rgba(71,196,255,0.6); opacity: 0; transform: scale(0); }
+  .note-dot.anchor.visible { opacity: 0.7; transform: scale(0.85); }
+  .note-dot.visible  { opacity: 1; transform: scale(1); }
+
+  /* SVG connector overlay */
+  #connectorSvg {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none; z-index: 3;
+    overflow: visible;
+  }
+  .connector-line {
+    stroke: rgba(255,107,53,0.5);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 4;
+    fill: none;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  .connector-line.visible { opacity: 1; }
+  .anchor-line {
+    stroke: rgba(71,196,255,0.4);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    fill: none;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  .anchor-line.visible { opacity: 1; }
+
+  /* INFO ROW */
+  .info-row {
+    width: 100%; max-width: 700px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px; margin-bottom: 6px;
+  }
+
+  .info-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 3px; padding: 8px; text-align: center;
+  }
+  .info-card .lbl {
+    font-size: 0.42rem; color: var(--muted);
+    letter-spacing: 0.26em; text-transform: uppercase; margin-bottom: 2px;
+  }
+  .info-card .val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem; letter-spacing: 0.08em; line-height: 1;
+  }
+  .info-card .sub {
+    font-size: 0.4rem; color: var(--muted);
+    letter-spacing: 0.1em; margin-top: 2px; line-height: 1.4;
+  }
+  .root-card  .val { color: var(--accent); }
+  .note-card  .val { color: var(--accent2); }
+
+  /* ANSWER CARD */
+  .answer-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 3px; padding: 8px; text-align: center;
+    transition: opacity 0.5s, border-color 0.5s, box-shadow 0.5s;
+  }
+  .answer-card.hidden   { opacity: 0.1; border-color: #141414; }
+  .answer-card.revealed { opacity: 1; border-color: var(--accent2); box-shadow: 0 0 16px rgba(255,107,53,0.15); }
+  .answer-card.shaped   { border-color: var(--accent3); box-shadow: 0 0 16px rgba(71,196,255,0.15); }
+
+  .ans-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.3rem; color: var(--text);
+    letter-spacing: 0.1em; line-height: 1;
+  }
+  .ans-semi { font-size: 0.42rem; color: var(--muted); letter-spacing: 0.18em; margin-top: 2px; }
+  .ans-hint { font-size: 0.4rem; color: var(--muted); letter-spacing: 0.16em; text-transform: uppercase; margin-top: 3px; opacity: 0.6; }
+
+  /* SHAPE EXPLANATION */
+  .shape-card {
+    width: 100%; max-width: 700px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px; padding: 10px 12px;
+    margin-bottom: 6px;
+    transition: opacity 0.5s, border-color 0.5s, box-shadow 0.5s;
+    min-height: 48px;
+  }
+  .shape-card.hidden   { opacity: 0.08; border-color: #141414; }
+  .shape-card.visible  { opacity: 1; border-color: var(--accent3); box-shadow: 0 0 16px rgba(71,196,255,0.12); }
+
+  .shape-card .slbl {
+    font-size: 0.42rem; color: var(--accent3);
+    letter-spacing: 0.28em; text-transform: uppercase; margin-bottom: 3px;
+  }
+  .shape-card .stext {
+    font-size: 0.65rem; color: var(--text); line-height: 1.55;
+  }
+  .shape-card .stext em {
+    color: var(--accent3); font-style: normal; font-weight: 700;
+  }
+  .shape-card .stext .anchor-ref {
+    color: var(--accent3); font-weight: 700;
+  }
+  .shape-card .stext .root-ref {
+    color: var(--accent); font-weight: 700;
+  }
+  .shape-card .stext .ivl-ref {
+    color: var(--accent2); font-weight: 700;
+  }
+  .shape-card .shint {
+    font-size: 0.46rem; color: var(--muted);
+    letter-spacing: 0.14em; margin-top: 4px; line-height: 1.5;
+  }
+
+  /* LEGEND */
+  .legend {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    font-size: 0.46rem; color: var(--muted);
+    letter-spacing: 0.08em; justify-content: center;
+    margin-bottom: 10px;
+  }
+  .ldot {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; margin-right: 4px; vertical-align: middle;
+  }
+
+  /* CONTROLS */
+  .controls {
+    display: flex; gap: 8px;
+    width: 100%; max-width: 700px; justify-content: center;
+    position: sticky; bottom: 0;
+    padding: 12px 0 4px;
+    background: linear-gradient(to top, var(--bg) 60%, transparent);
+    z-index: 10;
+  }
+  .btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 14px 18px; border: 1px solid var(--border);
+    background: transparent; color: var(--text);
+    cursor: pointer; border-radius: 2px; transition: all 0.15s; flex: 1;
+    min-height: 48px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.28; pointer-events: none; }
+  .btn.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+  .btn.primary:hover { background: #cde030; }
+  .btn.danger  { border-color: #ff3333; color: #ff3333; }
+  .btn.danger:hover { background: #ff3333; color: #000; }
+
+  @media (max-width: 420px) {
+    body { padding: 12px 6px 28px; }
+    .fretboard-wrap { padding: 10px 4px 16px; }
+    .string-name { width: 22px; font-size: 0.52rem; padding-right: 4px; }
+    .fret-labels { margin-left: 22px; }
+    .string-row::after { left: 22px; }
+    .note-dot { width: 20px; height: 20px; font-size: 0.36rem; }
+    .string-row { height: 26px; }
+    .fret-cell { height: 26px; }
+    .info-card .val { font-size: 1.3rem; }
+    .ans-name { font-size: 1.1rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Fretboard Ears</h1>
+<p class="subtitle">interval trainer · hands-free</p>
+
+<button class="settings-toggle" id="settingsToggle" onclick="toggleSettings()">
+  <span>Settings</span>
+  <span class="arrow">▾</span>
+</button>
+<div class="settings" id="settingsPanel">
+  <div class="setting-group">
+    <label>Interval Set</label>
+    <select id="modeSelect">
+      <option value="basic">Basic (unison, 4th, 5th, octave)</option>
+      <option value="all">All Intervals</option>
+      <option value="thirds">Thirds & Sixths</option>
+      <option value="tense">Tense (2nd, 7th, tritone)</option>
+    </select>
+  </div>
+  <div class="setting-group">
+    <label>Seconds per interval</label>
+    <div class="speed-row">
+      <input type="range" id="speedSlider" min="6" max="20" value="10" step="1">
+      <span class="speed-val" id="speedLabel">10s</span>
+    </div>
+  </div>
+</div>
+
+<div class="progress-wrap">
+  <div class="state-label" id="stateLabel">Press play to begin</div>
+  <div class="progress-bar-bg">
+    <div class="progress-bar-fill" id="progressFill"></div>
+  </div>
+  <div class="progress-info">
+    <span id="countLabel">0 played</span>
+    <span id="nextLabel">—</span>
+  </div>
+  <div class="phase-indicators">
+    <span><span class="phase-dot" id="phaseDotReveal"></span>answer at 50%</span>
+    <span><span class="phase-dot" id="phaseDotShape"></span>shape at 75%</span>
+  </div>
+</div>
+
+<div class="fretboard-wrap">
+  <div class="fret-labels" id="fretLabels"></div>
+  <div class="fb-inner" id="fbInner">
+    <svg id="connectorSvg"></svg>
+  </div>
+</div>
+
+<div class="info-row">
+  <div class="info-card root-card">
+    <div class="lbl">Root</div>
+    <div class="val" id="rootDisplay">—</div>
+    <div class="sub" id="rootPos">—</div>
+  </div>
+  <div class="answer-card hidden" id="answerCard">
+    <div class="lbl">Interval</div>
+    <div class="ans-name" id="intervalName">—</div>
+    <div class="ans-semi" id="intervalSemi">—</div>
+    <div class="ans-hint" id="ansHint">reveals at 50%</div>
+  </div>
+  <div class="info-card note-card">
+    <div class="lbl">Note</div>
+    <div class="val" id="noteDisplay">—</div>
+    <div class="sub" id="notePos">—</div>
+  </div>
+</div>
+
+<div class="shape-card hidden" id="shapeCard">
+  <div class="slbl">How to find it</div>
+  <div class="stext" id="shapeText">—</div>
+  <div class="shint" id="shapeHint"></div>
+</div>
+
+<div class="legend">
+  <span><span class="ldot" style="background:var(--dot-root)"></span>Root</span>
+  <span><span class="ldot" style="background:var(--dot-interval)"></span>Interval</span>
+  <span><span class="ldot" style="background:var(--accent3);opacity:0.7"></span>Anchor</span>
+</div>
+
+<div class="controls">
+  <button class="btn primary" id="playBtn" onclick="togglePlay()">▶ Play</button>
+  <button class="btn" id="skipBtn" onclick="nextInterval()" disabled>Skip</button>
+  <button class="btn danger" id="stopBtn" onclick="stopAll()" style="display:none">■ Stop</button>
+</div>
+
+<script>
+// ── Music data ──────────────────────────────────────────────────────────────
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const OPEN_STRINGS = [
+  { name:'e', midi:64 },
+  { name:'B', midi:59 },
+  { name:'G', midi:55 },
+  { name:'D', midi:50 },
+  { name:'A', midi:45 },
+  { name:'E', midi:40 },
+];
+const SMIDI = OPEN_STRINGS.map(s => s.midi);
+const FRET_COUNT = 12;
+const FRET_MARKERS = [3,5,7,9,12];
+
+// String gaps in semitones: e-B=5, B-G=4, G-D=5, D-A=5, A-E=5
+const STRING_GAPS = [5, 4, 5, 5, 5]; // gap between string i and string i+1
+
+const INTERVALS = {
+  0:  { name:'Unison',       short:'U',  semitones:0  },
+  1:  { name:'Minor 2nd',    short:'m2', semitones:1  },
+  2:  { name:'Major 2nd',    short:'M2', semitones:2  },
+  3:  { name:'Minor 3rd',    short:'m3', semitones:3  },
+  4:  { name:'Major 3rd',    short:'M3', semitones:4  },
+  5:  { name:'Perfect 4th',  short:'P4', semitones:5  },
+  6:  { name:'Tritone',      short:'TT', semitones:6  },
+  7:  { name:'Perfect 5th',  short:'P5', semitones:7  },
+  8:  { name:'Minor 6th',    short:'m6', semitones:8  },
+  9:  { name:'Major 6th',    short:'M6', semitones:9  },
+  10: { name:'Minor 7th',    short:'m7', semitones:10 },
+  11: { name:'Major 7th',    short:'M7', semitones:11 },
+  12: { name:'Octave',       short:'8ve',semitones:12 },
+};
+
+const MODE_INTERVALS = {
+  all:   [0,1,2,3,4,5,6,7,8,9,10,11,12],
+  basic: [0,5,7,12],
+  thirds:[3,4,8,9],
+  tense: [1,2,6,10,11],
+};
+
+// ── Anchor-based pedagogy ───────────────────────────────────────────────────
+// The core idea: teach every interval as a delta from an anchor you already know.
+// The 4 anchors every guitarist knows by shape:
+//   P4 (5 semi): 1 string down, same fret (that's how the guitar is tuned)
+//   P5 (7 semi): 1 string down, 2 frets back (power chord)
+//   Octave (12): 2 strings down, 2 frets up (octave box)
+//   Unison (0): same note, reference point
+//
+// For cross-string intervals, we find the nearest anchor on the fretboard
+// and describe the target as "anchor + N frets" or "anchor - N frets".
+// We also SHOW the anchor dot on the fretboard so the user can visualize.
+
+function findAnchorPosition(rootSi, rootFret, anchorSemitones) {
+  // Given a root, find where the anchor interval lands using the most
+  // natural guitar voicing (cross-string, not same-string)
+  const targetMidi = SMIDI[rootSi] + rootFret + anchorSemitones;
+
+  // Try 1-2 strings down (higher index = lower pitch)
+  const candidates = [];
+  for (let si = 0; si < 6; si++) {
+    const f = targetMidi - SMIDI[si];
+    if (f >= 0 && f <= FRET_COUNT && si !== rootSi) {
+      candidates.push({ si, fret: f, strDist: Math.abs(si - rootSi) });
+    }
+  }
+  // Prefer smallest string distance
+  candidates.sort((a, b) => a.strDist - b.strDist);
+  return candidates[0] || null;
+}
+
+function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
+  const strDiff = ivlSi - rootSi; // positive = lower pitched string
+  const fretDiff = ivlFret - rootFret;
+  const rootNote = NOTE_NAMES[(SMIDI[rootSi] + rootFret) % 12];
+  const ivlNote  = NOTE_NAMES[(SMIDI[ivlSi]  + ivlFret)  % 12];
+
+  // Check if the B-G boundary (strings 1-2) is crossed
+  const crossesBG = (Math.min(rootSi, ivlSi) <= 1 && Math.max(rootSi, ivlSi) >= 2);
+
+  let text = '', hint = '', anchor = null;
+
+  // ── Same string: just count frets ──
+  if (strDiff === 0) {
+    if (semitones === 0) {
+      text = `Same note, same spot.`;
+      hint = 'The simplest case — identical pitch.';
+    } else {
+      text = `Same string, <em>${semitones} fret${semitones>1?'s':''} up</em>.`;
+      const refs = [];
+      if (semitones <= 3) refs.push(`${semitones} fret${semitones>1?'s':''} is easy to count`);
+      else if (semitones === 5) refs.push('same distance as the next open string (P4)');
+      else if (semitones === 7) refs.push('same as jumping to the next string + 2 frets back');
+      else if (semitones === 12) refs.push('exactly at the 12th fret marker — one octave');
+      else if (semitones < 7) refs.push(`that's a P5 (7 frets) minus ${7 - semitones}`);
+      else refs.push(`that's an octave (12) minus ${12 - semitones} frets`);
+      hint = refs[0] ? refs[0].charAt(0).toUpperCase() + refs[0].slice(1) + '.' : '';
+      return { text, hint, anchor };
+    }
+    return { text, hint, anchor };
+  }
+
+  // ── Cross-string intervals: anchor-based descriptions ──
+
+  // For each interval, pick the best anchor to reference
+  if (semitones === 0) {
+    // Unison across strings
+    text = `Same pitch on a different string: <em>${Math.abs(strDiff)} string${Math.abs(strDiff)>1?'s':''} ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} fret${Math.abs(fretDiff)>1?'s':''} ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
+    hint = crossesBG
+      ? 'The B-G gap is 4 semitones (not 5), so the fret offset shifts by 1 when crossing that pair.'
+      : 'Each string pair is 5 semitones apart, so going 1 string lower = 5 frets higher for the same note.';
+    return { text, hint, anchor };
+  }
+
+  // P4 (5 semitones) — this IS an anchor
+  if (semitones === 5) {
+    if (Math.abs(strDiff) === 1 && strDiff > 0) {
+      text = `<em>One string lower, ${fretDiff === 0 ? 'same fret' : Math.abs(fretDiff) + ' fret' + (Math.abs(fretDiff)>1?'s':'') + (fretDiff > 0 ? ' up' : ' down')}</em>. This is how the guitar is tuned — each string is a 4th apart.`;
+      hint = crossesBG
+        ? 'Exception: B→G is only 4 semitones, so the P4 needs +1 fret compensation.'
+        : 'This is the most natural interval on guitar. Same fret, next string down = perfect 4th.';
+    } else {
+      text = `<em>${Math.abs(strDiff)} strings ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
+      hint = 'The simplest P4 shape is 1 string lower, same fret.';
+    }
+    return { text, hint, anchor };
+  }
+
+  // P5 (7 semitones) — this IS an anchor
+  if (semitones === 7) {
+    if (Math.abs(strDiff) === 1 && strDiff > 0) {
+      text = `<em>One string lower, ${Math.abs(fretDiff)} fret${Math.abs(fretDiff)>1?'s':''} ${fretDiff > 0 ? 'up' : 'down'}</em>. The <em>power chord</em> shape.`;
+      hint = crossesBG
+        ? 'Crossing B-G: power chord shifts — 1 string lower, 1 fret down (not 2).'
+        : 'The power chord: 1 string lower, 2 frets back. The most recognizable shape in rock guitar.';
+    } else {
+      text = `<em>${Math.abs(strDiff)} strings ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
+      hint = 'The simplest P5 is the power chord: 1 string lower, 2 frets back.';
+    }
+    return { text, hint, anchor };
+  }
+
+  // Octave (12) — this IS an anchor
+  if (semitones === 12) {
+    if (Math.abs(strDiff) === 2) {
+      text = `<em>2 strings lower, ${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>. The <em>octave box</em>.`;
+      hint = crossesBG
+        ? 'Crossing B-G: the octave box shifts to +3 frets instead of +2.'
+        : 'Classic octave shape: 2 strings down, 2 frets up. Use the fret markers to spot it fast.';
+    } else if (strDiff === 0) {
+      text = `Same string, <em>12 frets up</em> — right at the octave marker.`;
+      hint = '12th fret = octave. The double dot marker is your landmark.';
+    } else {
+      text = `<em>${Math.abs(strDiff)} strings ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
+      hint = 'The standard octave shape is 2 strings down, 2 frets up.';
+    }
+    return { text, hint, anchor };
+  }
+
+  // ── Everything else: describe relative to nearest anchor ──
+
+  // Strategy: find the best anchor and describe the interval as anchor ± frets
+  // For intervals < 7: reference P4 (5) or P5 (7)
+  // For intervals > 7: reference octave (12)
+
+  if (semitones >= 1 && semitones <= 4) {
+    // Close intervals: reference P4 (same fret, 1 string down)
+    // "From the root, find the P4 (1 string down, same fret), then go back N frets"
+    const p4pos = findAnchorPosition(rootSi, rootFret, 5);
+    const delta = semitones - 5; // negative: interval is below P4
+
+    if (p4pos && Math.abs(strDiff) <= 2) {
+      anchor = { si: p4pos.si, fret: p4pos.fret, label: 'P4' };
+      const absDelta = Math.abs(delta);
+      text = `Find the <span class="anchor-ref">P4</span> (1 string down, same fret), then go <em>${absDelta} fret${absDelta>1?'s':''} back</em>.`;
+
+      if (semitones === 4) hint = 'Major 3rd = P4 minus 1 fret. One fret below where you\'d play a 4th.';
+      else if (semitones === 3) hint = 'Minor 3rd = P4 minus 2 frets. Two frets below the 4th — think "power chord on the same string pair but 1 fret further back."';
+      else if (semitones === 2) hint = 'Major 2nd = P4 minus 3 frets. A whole step — easy to count on one string, trickier across strings.';
+      else if (semitones === 1) hint = 'Minor 2nd = P4 minus 4 frets. Maximum tension — practically touching.';
+    } else {
+      text = `<em>${Math.abs(strDiff)} string${Math.abs(strDiff)>1?'s':''} ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} fret${Math.abs(fretDiff)>1?'s':''} ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
+      hint = `${INTERVALS[semitones].name}: ${semitones} semitones. On one string, that's ${semitones} frets up.`;
+    }
+    return { text, hint, anchor };
+  }
+
+  if (semitones === 6) {
+    // Tritone: exactly between P4 and P5
+    const p5pos = findAnchorPosition(rootSi, rootFret, 7);
+    if (p5pos) {
+      anchor = { si: p5pos.si, fret: p5pos.fret, label: 'P5' };
+      text = `Find the <span class="anchor-ref">P5</span> (power chord shape), then go <em>1 fret back</em>. Or find the <span class="anchor-ref">P4</span> and go <em>1 fret forward</em>.`;
+      hint = 'The tritone sits exactly between the 4th and 5th — 1 fret from each. The most unstable interval.';
+    } else {
+      text = `<em>${Math.abs(strDiff)} strings ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>. One fret short of a power chord.`;
+      hint = 'Tritone = P5 - 1 fret = P4 + 1 fret.';
+    }
+    return { text, hint, anchor };
+  }
+
+  if (semitones >= 8 && semitones <= 11) {
+    // Upper intervals: reference the octave box and count backwards
+    const octPos = findAnchorPosition(rootSi, rootFret, 12);
+    const delta = 12 - semitones; // how many frets back from octave
+
+    if (octPos) {
+      anchor = { si: octPos.si, fret: octPos.fret, label: '8ve' };
+      text = `Find the <span class="anchor-ref">octave</span> (2 strings down, 2 frets up), then go <em>${delta} fret${delta>1?'s':''} back</em>.`;
+
+      if (semitones === 11) hint = 'Major 7th = 1 fret short of the octave. Maximum leading-tone tension — wants to resolve up.';
+      else if (semitones === 10) hint = 'Minor 7th = 2 frets short of the octave. The dominant 7th sound — bluesy, expectant.';
+      else if (semitones === 9) hint = 'Major 6th = 3 frets short of the octave. Warm and open. It\'s also an inverted minor 3rd.';
+      else if (semitones === 8) hint = 'Minor 6th = 4 frets short of the octave. Dark and wide. It\'s an inverted major 3rd.';
+    } else {
+      text = `<em>${Math.abs(strDiff)} strings ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} frets ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
+      hint = `${INTERVALS[semitones].name} = octave minus ${delta} frets.`;
+    }
+    return { text, hint, anchor };
+  }
+
+  // Fallback
+  text = `<em>${Math.abs(strDiff)} string${Math.abs(strDiff)>1?'s':''} ${strDiff > 0 ? 'lower' : 'higher'}</em>, <em>${Math.abs(fretDiff)} fret${Math.abs(fretDiff)>1?'s':''} ${fretDiff > 0 ? 'up' : 'down'}</em>.`;
+  hint = `${semitones} semitone${semitones!==1?'s':''} from the root.`;
+  return { text, hint, anchor };
+}
+
+
+// ── Build fretboard ─────────────────────────────────────────────────────────
+function buildFretboard() {
+  const labelsEl = document.getElementById('fretLabels');
+  const fbInner  = document.getElementById('fbInner');
+  labelsEl.innerHTML = '';
+
+  Array.from(fbInner.children).forEach(c => { if (c.id !== 'connectorSvg') c.remove(); });
+
+  for (let f = 0; f <= FRET_COUNT; f++) {
+    const d = document.createElement('div');
+    d.className = 'fret-label';
+    d.textContent = f === 0 ? '' : f;
+    labelsEl.appendChild(d);
+  }
+
+  OPEN_STRINGS.forEach((s, si) => {
+    const row = document.createElement('div');
+    row.className = 'string-row';
+
+    const nm = document.createElement('div');
+    nm.className = 'string-name';
+    nm.textContent = s.name;
+    row.appendChild(nm);
+
+    const fretsEl = document.createElement('div');
+    fretsEl.className = 'frets';
+
+    for (let f = 0; f <= FRET_COUNT; f++) {
+      const cell = document.createElement('div');
+      cell.className = 'fret-cell';
+      cell.id = `cell-${si}-${f}`;
+      const dot = document.createElement('div');
+      dot.className = 'note-dot';
+      dot.id = `dot-${si}-${f}`;
+      cell.appendChild(dot);
+      if (FRET_MARKERS.includes(f)) {
+        const m = document.createElement('div');
+        m.className = 'fret-marker';
+        cell.appendChild(m);
+      }
+      fretsEl.appendChild(cell);
+    }
+    row.appendChild(fretsEl);
+    fbInner.appendChild(row);
+  });
+}
+
+function clearDots() {
+  document.querySelectorAll('.note-dot').forEach(d => {
+    d.className = 'note-dot'; d.textContent = '';
+  });
+}
+
+function showDot(si, fret, type, label) {
+  const dot = document.getElementById(`dot-${si}-${fret}`);
+  if (!dot) return;
+  dot.className = `note-dot ${type} visible`;
+  dot.textContent = label;
+}
+
+function getDotCenter(si, fret) {
+  const cell = document.getElementById(`cell-${si}-${fret}`);
+  const parent = document.getElementById('fbInner');
+  if (!cell || !parent) return null;
+  const cr = cell.getBoundingClientRect();
+  const pr = parent.getBoundingClientRect();
+  return {
+    x: cr.left - pr.left + cr.width / 2,
+    y: cr.top  - pr.top  + cr.height / 2,
+  };
+}
+
+function drawConnector(rootSi, rootFret, ivlSi, ivlFret, anchorDot) {
+  const svg = document.getElementById('connectorSvg');
+  svg.innerHTML = '';
+
+  const A = getDotCenter(rootSi, rootFret);
+  const B = getDotCenter(ivlSi, ivlFret);
+  if (!A || !B) return;
+
+  // Draw anchor connections if present
+  if (anchorDot) {
+    const L = getDotCenter(anchorDot.si, anchorDot.fret);
+    if (L) {
+      // Root to anchor (dashed blue)
+      const l1 = document.createElementNS('http://www.w3.org/2000/svg','line');
+      l1.setAttribute('x1', A.x); l1.setAttribute('y1', A.y);
+      l1.setAttribute('x2', L.x); l1.setAttribute('y2', L.y);
+      l1.className.baseVal = 'anchor-line visible';
+      svg.appendChild(l1);
+      // Anchor to interval (dashed blue)
+      const l2 = document.createElementNS('http://www.w3.org/2000/svg','line');
+      l2.setAttribute('x1', L.x); l2.setAttribute('y1', L.y);
+      l2.setAttribute('x2', B.x); l2.setAttribute('y2', B.y);
+      l2.className.baseVal = 'anchor-line visible';
+      svg.appendChild(l2);
+    }
+  }
+
+  // Root to interval (main connector)
+  const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+  line.setAttribute('x1', A.x); line.setAttribute('y1', A.y);
+  line.setAttribute('x2', B.x); line.setAttribute('y2', B.y);
+  line.className.baseVal = 'connector-line visible';
+  svg.appendChild(line);
+}
+
+function clearConnector() {
+  document.getElementById('connectorSvg').innerHTML = '';
+}
+
+// ── Audio ───────────────────────────────────────────────────────────────────
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playNote(si, fret, delay, dur) {
+  const ctx = getAudio();
+  const freq = 440 * Math.pow(2, (SMIDI[si] + fret - 69) / 12);
+  const now = ctx.currentTime + delay;
+
+  // Main tone — triangle for warmth
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(freq, now);
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(0.32, now + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.15, now + 0.15);
+  g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start(now); osc.stop(now + dur);
+
+  // 2nd harmonic for pluck brightness
+  const o2 = ctx.createOscillator();
+  const g2 = ctx.createGain();
+  o2.type = 'sine';
+  o2.frequency.setValueAtTime(freq * 2, now);
+  g2.gain.setValueAtTime(0.12, now);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.25);
+  o2.connect(g2); g2.connect(ctx.destination);
+  o2.start(now); o2.stop(now + dur);
+
+  // 3rd harmonic — quick click for attack
+  const o3 = ctx.createOscillator();
+  const g3 = ctx.createGain();
+  o3.type = 'sine';
+  o3.frequency.setValueAtTime(freq * 3, now);
+  g3.gain.setValueAtTime(0.06, now);
+  g3.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  o3.connect(g3); g3.connect(ctx.destination);
+  o3.start(now); o3.stop(now + dur * 0.3);
+}
+
+// ── Wake Lock ───────────────────────────────────────────────────────────────
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch (e) { /* not supported or denied */ }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+// ── Settings persistence ────────────────────────────────────────────────────
+function saveSettings() {
+  const s = {
+    mode: document.getElementById('modeSelect').value,
+    speed: document.getElementById('speedSlider').value,
+  };
+  try { localStorage.setItem('fretboard-ears', JSON.stringify(s)); } catch(e) {}
+}
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('fretboard-ears'));
+    if (s) {
+      if (s.mode) document.getElementById('modeSelect').value = s.mode;
+      if (s.speed) {
+        document.getElementById('speedSlider').value = s.speed;
+        document.getElementById('speedLabel').textContent = s.speed + 's';
+      }
+    }
+  } catch(e) {}
+}
+
+// ── Settings toggle ─────────────────────────────────────────────────────────
+function toggleSettings() {
+  const panel = document.getElementById('settingsPanel');
+  const btn = document.getElementById('settingsToggle');
+  panel.classList.toggle('open');
+  btn.classList.toggle('open');
+}
+
+// ── Game ────────────────────────────────────────────────────────────────────
+let playing = false;
+let t_next = null, t_reveal = null, t_shape = null, t_prog = null;
+let count = 0, progStart = null;
+
+function getMode()  { return document.getElementById('modeSelect').value; }
+function getSpeed() { return parseInt(document.getElementById('speedSlider').value) * 1000; }
+function rnd(arr)   { return arr[Math.floor(Math.random() * arr.length)]; }
+function noteName(si, fret) { return NOTE_NAMES[(SMIDI[si] + fret) % 12]; }
+
+function generatePair() {
+  const allowed = MODE_INTERVALS[getMode()];
+  const rSi = Math.floor(Math.random() * 6);
+  const rFret = Math.floor(Math.random() * 10);
+  const semi = rnd(allowed);
+  const info = INTERVALS[semi];
+  const tMidi = SMIDI[rSi] + rFret + semi;
+  const cands = [];
+  OPEN_STRINGS.forEach((_, si) => {
+    const f = tMidi - SMIDI[si];
+    if (f >= 0 && f <= FRET_COUNT) cands.push({ si, fret: f });
+  });
+  if (!cands.length) return generatePair();
+  const target = rnd(cands);
+  return {
+    root:     { si: rSi, fret: rFret, note: noteName(rSi, rFret) },
+    interval: { si: target.si, fret: target.fret, note: noteName(target.si, target.fret) },
+    info, semitones: semi,
+  };
+}
+
+function resetPhaseIndicators() {
+  document.getElementById('phaseDotReveal').className = 'phase-dot';
+  document.getElementById('phaseDotShape').className  = 'phase-dot';
+}
+
+function nextInterval() {
+  clearTimeout(t_next); clearTimeout(t_reveal); clearTimeout(t_shape); clearInterval(t_prog);
+  clearDots(); clearConnector();
+  resetPhaseIndicators();
+
+  document.getElementById('answerCard').className = 'answer-card hidden';
+  document.getElementById('ansHint').textContent  = 'reveals at 50%';
+  document.getElementById('intervalName').textContent = '—';
+  document.getElementById('intervalSemi').textContent = '—';
+  document.getElementById('shapeCard').className = 'shape-card hidden';
+  document.getElementById('shapeText').innerHTML = '—';
+  document.getElementById('shapeHint').textContent = '';
+
+  count++;
+  document.getElementById('countLabel').textContent = count + ' played';
+  const pair = generatePair();
+
+  showDot(pair.root.si, pair.root.fret, 'root', pair.root.note);
+  showDot(pair.interval.si, pair.interval.fret, 'ivl', pair.interval.note);
+
+  document.getElementById('rootDisplay').textContent = pair.root.note;
+  document.getElementById('noteDisplay').textContent = pair.interval.note;
+  const sn = si => OPEN_STRINGS[si].name;
+  document.getElementById('rootPos').textContent = `${sn(pair.root.si)} str · fret ${pair.root.fret}`;
+  document.getElementById('notePos').textContent = `${sn(pair.interval.si)} str · fret ${pair.interval.fret}`;
+
+  // Play: root then interval
+  playNote(pair.root.si, pair.root.fret, 0, 1.4);
+  playNote(pair.interval.si, pair.interval.fret, 0.5, 1.4);
+
+  const dur = getSpeed();
+  progStart = Date.now();
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('nextLabel').textContent = 'next in ' + (dur/1000) + 's';
+
+  // Phase 1: reveal answer at 50%
+  t_reveal = setTimeout(() => {
+    if (!playing) return;
+    document.getElementById('phaseDotReveal').className = 'phase-dot active-reveal';
+    document.getElementById('answerCard').className = 'answer-card revealed';
+    document.getElementById('intervalName').textContent = pair.info.name;
+    document.getElementById('intervalSemi').textContent = pair.semitones + ' semitone' + (pair.semitones !== 1 ? 's' : '');
+    document.getElementById('ansHint').textContent = '';
+    // Replay both together
+    playNote(pair.root.si, pair.root.fret, 0, 1.8);
+    playNote(pair.interval.si, pair.interval.fret, 0, 1.8);
+  }, dur * 0.5);
+
+  // Phase 2: show shape + anchor at 75%
+  t_shape = setTimeout(() => {
+    if (!playing) return;
+    document.getElementById('phaseDotShape').className = 'phase-dot active-shape';
+    document.getElementById('answerCard').className = 'answer-card shaped';
+
+    const shapeInfo = getShapeInfo(
+      pair.semitones,
+      pair.root.si, pair.root.fret,
+      pair.interval.si, pair.interval.fret
+    );
+
+    document.getElementById('shapeCard').className = 'shape-card visible';
+    document.getElementById('shapeText').innerHTML = shapeInfo.text;
+    document.getElementById('shapeHint').textContent = shapeInfo.hint;
+
+    // Show anchor dot if we have one
+    if (shapeInfo.anchor) {
+      showDot(shapeInfo.anchor.si, shapeInfo.anchor.fret, 'anchor', shapeInfo.anchor.label);
+    }
+
+    drawConnector(pair.root.si, pair.root.fret, pair.interval.si, pair.interval.fret, shapeInfo.anchor);
+  }, dur * 0.75);
+
+  // Progress bar
+  t_prog = setInterval(() => {
+    const elapsed = Date.now() - progStart;
+    const pct = Math.min((elapsed / dur) * 100, 100);
+    document.getElementById('progressFill').style.width = pct + '%';
+    const rem = Math.max(0, Math.ceil((dur - elapsed) / 1000));
+    document.getElementById('nextLabel').textContent = rem > 0 ? 'next in ' + rem + 's' : '...';
+  }, 100);
+
+  t_next = setTimeout(() => { if (playing) nextInterval(); }, dur);
+}
+
+function togglePlay() { playing ? pauseAll() : startAll(); }
+
+function startAll() {
+  playing = true;
+  requestWakeLock();
+  saveSettings();
+  document.getElementById('playBtn').textContent = '⏸ Pause';
+  document.getElementById('playBtn').classList.remove('primary');
+  document.getElementById('stopBtn').style.display = 'inline-block';
+  document.getElementById('skipBtn').disabled = false;
+  document.getElementById('stateLabel').textContent = 'Playing — hands off!';
+  nextInterval();
+}
+
+function pauseAll() {
+  playing = false;
+  clearTimeout(t_next); clearTimeout(t_reveal); clearTimeout(t_shape); clearInterval(t_prog);
+  releaseWakeLock();
+  document.getElementById('playBtn').textContent = '▶ Resume';
+  document.getElementById('playBtn').classList.add('primary');
+  document.getElementById('stateLabel').textContent = 'Paused';
+  document.getElementById('nextLabel').textContent = '—';
+}
+
+function stopAll() {
+  playing = false;
+  clearTimeout(t_next); clearTimeout(t_reveal); clearTimeout(t_shape); clearInterval(t_prog);
+  clearDots(); clearConnector(); resetPhaseIndicators();
+  releaseWakeLock();
+  count = 0;
+  document.getElementById('playBtn').textContent = '▶ Play';
+  document.getElementById('playBtn').classList.add('primary');
+  document.getElementById('stopBtn').style.display = 'none';
+  document.getElementById('skipBtn').disabled = true;
+  document.getElementById('stateLabel').textContent = 'Press play to begin';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('countLabel').textContent = '0 played';
+  document.getElementById('nextLabel').textContent = '—';
+  document.getElementById('rootDisplay').textContent = '—';
+  document.getElementById('noteDisplay').textContent = '—';
+  document.getElementById('rootPos').textContent = '—';
+  document.getElementById('notePos').textContent = '—';
+  document.getElementById('answerCard').className = 'answer-card hidden';
+  document.getElementById('ansHint').textContent = 'reveals at 50%';
+  document.getElementById('intervalName').textContent = '—';
+  document.getElementById('intervalSemi').textContent = '—';
+  document.getElementById('shapeCard').className = 'shape-card hidden';
+  document.getElementById('shapeText').innerHTML = '—';
+  document.getElementById('shapeHint').textContent = '';
+}
+
+// Settings event listeners
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedLabel').textContent = this.value + 's';
+});
+document.getElementById('modeSelect').addEventListener('change', saveSettings);
+document.getElementById('speedSlider').addEventListener('change', saveSettings);
+
+// Init
+loadSettings();
+buildFretboard();
+</script>
+</body>
+</html>
