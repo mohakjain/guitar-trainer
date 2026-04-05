@@ -58,6 +58,9 @@ export function clearDots() {
   document.querySelectorAll('.note-dot').forEach(d => {
     d.className = 'note-dot';
     d.textContent = '';
+    d.style.background = '';
+    d.style.color = '';
+    d.style.borderColor = '';
   });
 }
 
@@ -66,6 +69,14 @@ export function showDot(si, fret, type, label) {
   if (!dot) return;
   dot.className = `note-dot ${type} visible`;
   dot.textContent = label;
+}
+
+export function colorDot(si, fret, bgColor, textColor, borderColor) {
+  const dot = document.getElementById(`dot-${si}-${fret}`);
+  if (!dot) return;
+  if (bgColor) dot.style.background = bgColor;
+  if (textColor) dot.style.color = textColor;
+  if (borderColor) dot.style.borderColor = borderColor;
 }
 
 function getDotCenter(si, fret) {

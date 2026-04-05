@@ -8,28 +8,37 @@
 </head>
 <body>
 
-<h1>Interval Trainer</h1>
-<p class="subtitle">hands-free ear training</p>
-
-<button class="settings-toggle" id="settingsToggle" onclick="toggleSettings()">
-  <span>Settings</span>
-  <span class="arrow">▾</span>
-</button>
-<div class="settings" id="settingsPanel">
-  <div class="setting-group">
-    <label>Interval set</label>
-    <select id="modeSelect">
-      <option value="basic">Basic (unison, 4th, 5th, octave)</option>
-      <option value="all">All intervals</option>
-      <option value="thirds">Thirds &amp; sixths</option>
-      <option value="tense">Tense (2nd, 7th, tritone)</option>
-    </select>
+<div class="top-bar">
+  <div>
+    <h1>Interval Trainer</h1>
+    <p class="subtitle">hands-free ear training</p>
   </div>
-  <div class="setting-group">
-    <label>Seconds per interval</label>
-    <div class="speed-row">
-      <input type="range" id="speedSlider" min="6" max="20" value="10" step="1">
-      <span class="speed-val" id="speedLabel">10s</span>
+  <button class="gear-btn" id="settingsToggle" onclick="toggleSettings()" aria-label="Settings">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+  <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()"></div>
+  <div class="settings-dropdown" id="settingsPanel">
+    <div class="setting-group">
+      <label>Interval set</label>
+      <select id="modeSelect">
+        <option value="basic">Basic (unison, 4th, 5th, octave)</option>
+        <option value="all">All intervals</option>
+        <option value="thirds">Thirds &amp; sixths</option>
+        <option value="tense">Tense (2nd, 7th, tritone)</option>
+      </select>
+    </div>
+    <div class="setting-group">
+      <label>Seconds per interval</label>
+      <div class="speed-row">
+        <input type="range" id="speedSlider" min="6" max="20" value="10" step="1">
+        <span class="speed-val" id="speedLabel">10s</span>
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="toggle-label">
+        <input type="checkbox" id="noUnisonToggle">
+        <span>Exclude unison</span>
+      </label>
     </div>
   </div>
 </div>
@@ -42,10 +51,6 @@
   <div class="progress-info">
     <span id="countLabel">0 played</span>
     <span id="nextLabel">—</span>
-  </div>
-  <div class="phase-indicators">
-    <span><span class="phase-dot" id="phaseDotReveal"></span>answer at 50%</span>
-    <span><span class="phase-dot" id="phaseDotShape"></span>shape at 75%</span>
   </div>
 </div>
 
@@ -65,6 +70,7 @@
   <div class="answer-card hidden" id="answerCard">
     <div class="lbl">Interval</div>
     <div class="ans-name" id="intervalName">—</div>
+    <div class="ans-sound" id="intervalSound"></div>
     <div class="ans-semi" id="intervalSemi">—</div>
     <div class="ans-hint" id="ansHint">reveals at 50%</div>
   </div>
@@ -82,10 +88,9 @@
 </div>
 
 <div class="legend">
-  <span><span class="ldot" style="background:var(--root-color)"></span>Root</span>
-  <span><span class="ldot" style="background:var(--ivl-color)"></span>Interval</span>
-  <span><span class="ldot" style="background:var(--ivl-color);opacity:0.4;border:1px solid var(--ivl-color)"></span>Other voicings</span>
-  <span><span class="ldot" style="background:var(--anchor-color);opacity:0.8"></span>Anchor</span>
+  <span><span class="ldot" style="background:#888"></span>Root</span>
+  <span><span class="ldot" style="background:#888"></span>Interval</span>
+  <span><span class="ldot" style="background:transparent;border:2px solid var(--anchor-color)"></span>Landmarks</span>
 </div>
 
 <div class="controls">

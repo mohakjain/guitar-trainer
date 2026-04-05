@@ -1,8 +1,8 @@
 // ── Game loop, settings, wake lock ───────────────────────────────────────────
 
 import { OPEN_STRINGS, generatePair } from './music.js';
-import { getShapeInfo } from './pedagogy.js';
-import { buildFretboard, clearDots, showDot, drawConnector, clearConnector } from './fretboard.js';
+import { getShapeInfo, findReferenceDots } from './pedagogy.js';
+import { buildFretboard, clearDots, showDot, colorDot, drawConnector, clearConnector } from './fretboard.js';
 import { playNote } from './audio.js';
 
 // ── DOM refs (cached once) ──────────────────────────────────────────────────
@@ -16,14 +16,13 @@ const els = {
   progressFill:  $('progressFill'),
   countLabel:    $('countLabel'),
   nextLabel:     $('nextLabel'),
-  phaseDotReveal:$('phaseDotReveal'),
-  phaseDotShape: $('phaseDotShape'),
   rootDisplay:   $('rootDisplay'),
   rootPos:       $('rootPos'),
   noteDisplay:   $('noteDisplay'),
   notePos:       $('notePos'),
   answerCard:    $('answerCard'),
   intervalName:  $('intervalName'),
+  intervalSound: $('intervalSound'),
   intervalSemi:  $('intervalSemi'),
   ansHint:       $('ansHint'),
   shapeCard:     $('shapeCard'),
@@ -34,11 +33,13 @@ const els = {
   speedLabel:    $('speedLabel'),
   settingsPanel: $('settingsPanel'),
   settingsToggle:$('settingsToggle'),
+  settingsOverlay:$('settingsOverlay'),
+  noUnisonToggle:$('noUnisonToggle'),
 };
 
 // ── State ───────────────────────────────────────────────────────────────────
 let playing = false;
-let t_next = null, t_reveal = null, t_shape = null, t_prog = null;
+let t_next = null, t_reveal = null, t_shape = null, t_far = null, t_prog = null;
 let count = 0, progStart = null;
 let wakeLock = null;
 
@@ -64,6 +65,7 @@ function saveSettings() {
     localStorage.setItem('fretboard-ears', JSON.stringify({
       mode: els.modeSelect.value,
       speed: els.speedSlider.value,
+      noUnison: els.noUnisonToggle.checked,
     }));
   } catch(e) {}
 }
@@ -77,31 +79,36 @@ function loadSettings() {
         els.speedSlider.value = s.speed;
         els.speedLabel.textContent = s.speed + 's';
       }
+      if (s.noUnison) els.noUnisonToggle.checked = s.noUnison;
     }
   } catch(e) {}
 }
 
 // ── UI helpers ──────────────────────────────────────────────────────────────
 function resetPhaseIndicators() {
-  els.phaseDotReveal.className = 'phase-dot';
-  els.phaseDotShape.className  = 'phase-dot';
 }
 
 function clearTimers() {
   clearTimeout(t_next);
   clearTimeout(t_reveal);
   clearTimeout(t_shape);
+  clearTimeout(t_far);
   clearInterval(t_prog);
 }
 
 function resetCards() {
   els.answerCard.className = 'answer-card hidden';
+  els.answerCard.style.borderColor = '';
   els.ansHint.textContent  = 'reveals at 50%';
   els.intervalName.textContent = '—';
+  els.intervalSound.textContent = '';
+  els.intervalSound.style.color = '';
   els.intervalSemi.textContent = '—';
   els.shapeCard.className = 'shape-card hidden';
   els.shapeText.innerHTML = '—';
   els.shapeHint.textContent = '';
+  els.rootDisplay.style.color = '';
+  els.noteDisplay.style.color = '';
 }
 
 // ── Core game loop ──────────────────────────────────────────────────────────
@@ -115,7 +122,7 @@ function nextInterval() {
   count++;
   els.countLabel.textContent = count + ' played';
 
-  const pair = generatePair(getMode());
+  const pair = generatePair(getMode(), { noUnison: els.noUnisonToggle.checked });
 
   // Show dots
   showDot(pair.root.si, pair.root.fret, 'root', pair.root.note);
@@ -140,20 +147,27 @@ function nextInterval() {
   // Phase 1: reveal answer at 50%
   t_reveal = setTimeout(() => {
     if (!playing) return;
-    els.phaseDotReveal.className = 'phase-dot active-reveal';
     els.answerCard.className = 'answer-card revealed';
+    els.answerCard.style.borderColor = pair.info.color;
     els.intervalName.textContent = pair.info.name;
-    els.intervalSemi.textContent = pair.semitones + ' semitone' + (pair.semitones !== 1 ? 's' : '') + ' · ' + pair.info.sound;
+    els.intervalSound.textContent = pair.info.sound;
+    els.intervalSemi.textContent = pair.semitones + ' semitone' + (pair.semitones !== 1 ? 's' : '');
     els.ansHint.textContent = '';
+    // Reveal interval colors on dots and cards
+    const rootColor = pair.semitones === 0 ? pair.info.color : '#e09f5a';
+    colorDot(pair.root.si, pair.root.fret, rootColor, '#1a1a1d');
+    colorDot(pair.interval.si, pair.interval.fret, pair.info.color, '#1a1a1d');
+    els.rootDisplay.style.color = rootColor;
+    els.noteDisplay.style.color = pair.info.color;
+    els.intervalSound.style.color = pair.info.color;
     // Replay both together
     playNote(pair.root.si, pair.root.fret, 0, 1.8);
     playNote(pair.interval.si, pair.interval.fret, 0, 1.8);
   }, dur * 0.5);
 
-  // Phase 2: show shape + anchor at 75%
+  // Phase 2: show shape + references at 66%
   t_shape = setTimeout(() => {
     if (!playing) return;
-    els.phaseDotShape.className = 'phase-dot active-shape';
     els.answerCard.className = 'answer-card shaped';
 
     const shapeInfo = getShapeInfo(
@@ -166,18 +180,31 @@ function nextInterval() {
     els.shapeText.innerHTML = shapeInfo.text;
     els.shapeHint.textContent = shapeInfo.hint;
 
-    // Show ghost dots — all other voicings of this interval from root
+    // Show ghost dots — other voicings of this interval, colored by interval
     if (shapeInfo.ghostDots) {
       shapeInfo.ghostDots.forEach(g => {
         const type = g.isStandard ? 'ghost-std' : 'ghost';
         showDot(g.si, g.fret, type, g.label);
+        colorDot(g.si, g.fret, null, pair.info.color, pair.info.color);
       });
     }
 
-    // Show anchor reference dot (P4/P5/octave used as reference)
-    if (shapeInfo.anchorDot) {
-      showDot(shapeInfo.anchorDot.si, shapeInfo.anchorDot.fret, 'anchor', shapeInfo.anchorDot.label);
-    }
+    // Show near reference landmarks (within 2 strings of root or interval)
+    const refDots = findReferenceDots(
+      pair.root.si, pair.root.fret,
+      pair.interval.si, pair.interval.fret
+    );
+    const isNear = r => {
+      const dRoot = Math.abs(r.si - pair.root.si);
+      const dIvl = Math.abs(r.si - pair.interval.si);
+      return Math.min(dRoot, dIvl) <= 2;
+    };
+    const isGhost = r => shapeInfo.ghostDots?.some(g => g.si === r.si && g.fret === r.fret);
+
+    refDots.filter(r => isNear(r) && !isGhost(r)).forEach(r => {
+      showDot(r.si, r.fret, 'ref', r.label);
+      colorDot(r.si, r.fret, null, r.color, r.color);
+    });
 
     // Show relay dot — the root relocated to the interval's string
     if (shapeInfo.relayDot) {
@@ -185,6 +212,20 @@ function nextInterval() {
     }
 
     drawConnector(pair.root.si, pair.root.fret, pair.interval.si, pair.interval.fret, shapeInfo.anchorDot);
+
+    // Stash far refs for the 75% phase
+    pair._farRefs = refDots.filter(r => !isNear(r) && !isGhost(r));
+  }, dur * 0.66);
+
+  // Phase 3: show far reference dots at 75%
+  t_far = setTimeout(() => {
+    if (!playing) return;
+    if (pair._farRefs) {
+      pair._farRefs.forEach(r => {
+        showDot(r.si, r.fret, 'ref', r.label);
+        colorDot(r.si, r.fret, null, r.color, r.color);
+      });
+    }
   }, dur * 0.75);
 
   // Progress bar
@@ -250,8 +291,15 @@ function togglePlay() {
 }
 
 function toggleSettings() {
-  els.settingsPanel.classList.toggle('open');
+  const isOpen = els.settingsPanel.classList.toggle('open');
   els.settingsToggle.classList.toggle('open');
+  els.settingsOverlay.classList.toggle('open', isOpen);
+}
+
+function closeSettings() {
+  els.settingsPanel.classList.remove('open');
+  els.settingsToggle.classList.remove('open');
+  els.settingsOverlay.classList.remove('open');
 }
 
 // ── Init ────────────────────────────────────────────────────────────────────
@@ -264,9 +312,11 @@ els.speedSlider.addEventListener('input', () => {
 });
 els.modeSelect.addEventListener('change', saveSettings);
 els.speedSlider.addEventListener('change', saveSettings);
+els.noUnisonToggle.addEventListener('change', saveSettings);
 
 // Expose to onclick handlers in HTML
 window.togglePlay = togglePlay;
 window.nextInterval = nextInterval;
 window.stopAll = stopAll;
 window.toggleSettings = toggleSettings;
+window.closeSettings = closeSettings;

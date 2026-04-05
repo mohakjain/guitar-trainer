@@ -16,19 +16,19 @@ export const FRET_COUNT = 12;
 export const FRET_MARKERS = [3, 5, 7, 9, 12];
 
 export const INTERVALS = {
-  0:  { name:'Unison',       short:'U',  semitones:0,  sound:'same note' },
-  1:  { name:'Minor 2nd',    short:'m2', semitones:1,  sound:'tense, grating' },
-  2:  { name:'Major 2nd',    short:'M2', semitones:2,  sound:'bright step' },
-  3:  { name:'Minor 3rd',    short:'m3', semitones:3,  sound:'sad, dark' },
-  4:  { name:'Major 3rd',    short:'M3', semitones:4,  sound:'happy, sweet' },
-  5:  { name:'Perfect 4th',  short:'P4', semitones:5,  sound:'open, hymn-like' },
-  6:  { name:'Tritone',      short:'TT', semitones:6,  sound:'restless, evil' },
-  7:  { name:'Perfect 5th',  short:'P5', semitones:7,  sound:'strong, hollow' },
-  8:  { name:'Minor 6th',    short:'m6', semitones:8,  sound:'dark, wide' },
-  9:  { name:'Major 6th',    short:'M6', semitones:9,  sound:'warm, nostalgic' },
-  10: { name:'Minor 7th',    short:'m7', semitones:10, sound:'bluesy, expectant' },
-  11: { name:'Major 7th',    short:'M7', semitones:11, sound:'dreamy, tense' },
-  12: { name:'Octave',       short:'8ve',semitones:12, sound:'same, higher' },
+  0:  { name:'Unison',       short:'U',  semitones:0,  sound:'identical, grounding, pure',    color:'#e09f5a' },
+  1:  { name:'Minor 2nd',    short:'m2', semitones:1,  sound:'tense, grating, chromatic',     color:'#b8e62e' },
+  2:  { name:'Major 2nd',    short:'M2', semitones:2,  sound:'bright, stepping, open',        color:'#c27aed' },
+  3:  { name:'Minor 3rd',    short:'m3', semitones:3,  sound:'sad, dark, minor',              color:'#3ed8a0' },
+  4:  { name:'Major 3rd',    short:'M3', semitones:4,  sound:'happy, sweet, major',           color:'#f06878' },
+  5:  { name:'Perfect 4th',  short:'P4', semitones:5,  sound:'open, hymn-like, suspended',    color:'#5cb8ff' },
+  6:  { name:'Tritone',      short:'TT', semitones:6,  sound:'restless, evil, splitting',     color:'#f0d830' },
+  7:  { name:'Perfect 5th',  short:'P5', semitones:7,  sound:'strong, hollow, powerful',      color:'#d470ff' },
+  8:  { name:'Minor 6th',    short:'m6', semitones:8,  sound:'dark, wide, cinematic',         color:'#40c840' },
+  9:  { name:'Major 6th',    short:'M6', semitones:9,  sound:'warm, nostalgic, resolving',    color:'#f050a8' },
+  10: { name:'Minor 7th',    short:'m7', semitones:10, sound:'bluesy, expectant, dominant',   color:'#40e8e8' },
+  11: { name:'Major 7th',    short:'M7', semitones:11, sound:'dreamy, tense, leading',        color:'#f0a030' },
+  12: { name:'Octave',       short:'8ve',semitones:12, sound:'same, higher, complete',        color:'#7b68ff' },
 };
 
 export const MODE_INTERVALS = {
@@ -92,8 +92,10 @@ function pickWeightedCandidate(cands, rootSi, rootFret, semitones) {
 }
 
 // Generate a random root + interval pair for the given mode
-export function generatePair(mode) {
-  const allowed = MODE_INTERVALS[mode];
+export function generatePair(mode, opts = {}) {
+  let allowed = MODE_INTERVALS[mode];
+  if (opts.noUnison) allowed = allowed.filter(s => s !== 0);
+  if (!allowed.length) allowed = MODE_INTERVALS[mode]; // fallback if all filtered
   const rSi = Math.floor(Math.random() * 6);
   const rFret = Math.floor(Math.random() * 10);
   const semi = rnd(allowed);

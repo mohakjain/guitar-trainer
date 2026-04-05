@@ -11,6 +11,9 @@
 
 import { SMIDI, FRET_COUNT, NOTE_NAMES, OPEN_STRINGS, INTERVALS } from './music.js';
 
+// Reference intervals to show as colored landmarks — both up and down from root
+const REFERENCE_SEMITONES = [0, 5, 7, 12, -5, -7, -12]; // Unison, P4, P5, Octave (above & below)
+
 // Find every position on the fretboard where this interval note exists
 export function findAllVoicings(rootSi, rootFret, semitones) {
   const targetMidi = SMIDI[rootSi] + rootFret + semitones;
@@ -22,6 +25,32 @@ export function findAllVoicings(rootSi, rootFret, semitones) {
     }
   }
   return positions;
+}
+
+// Find all P4, P5, octave positions reachable from root (above & below), sorted by closeness
+export function findReferenceDots(rootSi, rootFret, ivlSi, ivlFret) {
+  const dots = [];
+  const seen = new Set();
+  for (const semi of REFERENCE_SEMITONES) {
+    const absSemi = Math.abs(semi);
+    const info = INTERVALS[absSemi];
+    const targetMidi = SMIDI[rootSi] + rootFret + semi;
+    for (let si = 0; si < 6; si++) {
+      const f = targetMidi - SMIDI[si];
+      if (f >= 0 && f <= FRET_COUNT) {
+        const key = `${si}-${f}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        // Skip if overlaps root or interval dot
+        if (si === rootSi && f === rootFret) continue;
+        if (si === ivlSi && f === ivlFret) continue;
+        const dist = Math.abs(si - rootSi) + Math.abs(f - rootFret);
+        dots.push({ si, fret: f, label: info.short, color: info.color, semitones: absSemi, dist });
+      }
+    }
+  }
+  dots.sort((a, b) => a.dist - b.dist);
+  return dots;
 }
 
 // Does crossing between these strings go over the B(1)-G(2) boundary?
@@ -96,6 +125,27 @@ export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
   return { text, hint, ghostDots, anchorDot, relayDot };
 }
 
+// Find the nearest voicing of a given interval from root (preferring standard shapes)
+function findNearestVoicing(rootSi, rootFret, semitones) {
+  const targetMidi = SMIDI[rootSi] + rootFret + semitones;
+  const candidates = [];
+  for (let si = 0; si < 6; si++) {
+    const f = targetMidi - SMIDI[si];
+    if (f >= 0 && f <= FRET_COUNT) {
+      const strDist = Math.abs(si - rootSi);
+      const fretDist = Math.abs(f - rootFret);
+      candidates.push({ si, fret: f, dist: strDist + fretDist, strDist });
+    }
+  }
+  // Prefer adjacent string (standard shape), then by total distance
+  candidates.sort((a, b) => {
+    if (a.strDist <= 2 && b.strDist > 2) return -1;
+    if (b.strDist <= 2 && a.strDist > 2) return 1;
+    return a.dist - b.dist;
+  });
+  return candidates[0] || null;
+}
+
 function findAnchorDot(rootSi, rootFret, anchorSemitones, label) {
   const targetMidi = SMIDI[rootSi] + rootFret + anchorSemitones;
   const candidates = [];
@@ -119,6 +169,7 @@ function isStandardGhost(v, rootSi, rootFret, semitones) {
 
 function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi, rootFret, ivlSi, ivlFret) {
   const absFret = Math.abs(fretDiff);
+  const sName = si => OPEN_STRINGS[si].name;
 
   // Same string — simple
   if (absStr === 0) {
@@ -133,7 +184,12 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi
     if (absStr === 1 && absFret <= 1) {
       return `One string, ${fretDiff === 0 ? 'same fret' : '1 fret up'}. <em>This is the standard P4 shape</em> — how the guitar is tuned.${bgNote}`;
     }
-    return withRelay(`Standard P4 = next string, same fret.`, relayDot, semitones);
+    // Non-standard voicing — find the nearest standard P4 to reference
+    const stdP4 = findNearestVoicing(rootSi, rootFret, 5);
+    if (stdP4) {
+      return `The standard P4 is at <span class="anchor-ref">${sName(stdP4.si)} string fret ${stdP4.fret}</span> (one string, same fret). This is the same note at a different position.`;
+    }
+    return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>.${bgNote}`;
   }
 
   // ── P5 ──
@@ -141,15 +197,23 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi
     if (absStr === 1 && absFret <= 2) {
       return `One string, ${describeFretDiff(fretDiff)}. <em>This is the power chord shape.</em>${bgNote}`;
     }
-    return withRelay(`Standard P5 = next string, 2 frets back (power chord).`, relayDot, semitones);
+    const stdP5 = findNearestVoicing(rootSi, rootFret, 7);
+    if (stdP5) {
+      return `The standard P5 is at <span class="anchor-ref">${sName(stdP5.si)} string fret ${stdP5.fret}</span> (one string, 2 frets back). This is the same note at a different position.`;
+    }
+    return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>.${bgNote}`;
   }
 
   // ── Octave ──
   if (semitones === 12) {
-    if (absStr === 2 && fretDiff >= 2 && fretDiff <= 3) {
-      return `2 strings, ${fretDiff} frets up. <em>This is the octave box.</em>${bgNote}`;
+    if (absStr <= 2 && absFret <= 3) {
+      return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>. Same note, one octave higher.${bgNote}`;
     }
-    return withRelay(`Standard octave = 2 strings, 2 frets up.`, relayDot, semitones);
+    const stdOct = findNearestVoicing(rootSi, rootFret, 12);
+    if (stdOct) {
+      return `The nearest octave is at <span class="anchor-ref">${sName(stdOct.si)} string fret ${stdOct.fret}</span> (2 strings, 2 frets up). This is the same note at a different position.`;
+    }
+    return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>.${bgNote}`;
   }
 
   // ── Unison ──
@@ -157,27 +221,41 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi
     return `Same pitch, different string: <em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>.`;
   }
 
-  // ── Non-anchor intervals with relay ──
+  // ── Non-anchor intervals ──
+  // Describe relative to nearest landmark (P4, P5, or octave)
+  if (semitones >= 1 && semitones <= 4) {
+    // Close to P4 — describe as offset from it
+    const nearP4 = findNearestVoicing(rootSi, rootFret, 5);
+    if (nearP4 && absStr <= 2) {
+      const delta = 5 - semitones;
+      return `Find the <span class="anchor-ref">P4</span> at ${sName(nearP4.si)} string fret ${nearP4.fret}, then go <em>${delta} fret${delta>1?'s':''} back</em>.`;
+    }
+  }
+
+  if (semitones === 6) {
+    const nearP4 = findNearestVoicing(rootSi, rootFret, 5);
+    const nearP5 = findNearestVoicing(rootSi, rootFret, 7);
+    if (nearP4 && nearP5) {
+      return `Halfway between <span class="anchor-ref">P4</span> (fret ${nearP4.fret}) and <span class="anchor-ref">P5</span> (fret ${nearP5.fret}) on ${sName(nearP4.si)} string.`;
+    }
+    return `1 fret past the <span class="anchor-ref">P4</span>, or 1 fret before the <span class="anchor-ref">P5</span>.`;
+  }
+
+  if (semitones >= 8 && semitones <= 11) {
+    // Close to octave — describe as offset from it
+    const nearOct = findNearestVoicing(rootSi, rootFret, 12);
+    if (nearOct && absStr <= 3) {
+      const delta = 12 - semitones;
+      return `Find the <span class="anchor-ref">octave</span> at ${sName(nearOct.si)} string fret ${nearOct.fret}, then go <em>${delta} fret${delta>1?'s':''} back</em>.`;
+    }
+  }
+
+  // Fallback: describe the raw shape, with relay if available
   if (relayDot) {
     const rootNote = NOTE_NAMES[(SMIDI[rootSi] + rootFret) % 12];
     const fretsBetween = Math.abs(ivlFret - relayDot.fret);
     const dir = ivlFret > relayDot.fret ? 'up' : 'back';
-    return `${rootNote} is also at <span class="anchor-ref">fret ${relayDot.fret}</span> on the same string — from there it's just <em>${fretsBetween} frets ${dir}</em>.`;
-  }
-
-  // ── Close-position non-anchor intervals ──
-  if (semitones >= 1 && semitones <= 4) {
-    const delta = 5 - semitones;
-    return `<em>${delta} fret${delta>1?'s':''} back</em> from the <span class="anchor-ref">P4</span> (next string, same fret).`;
-  }
-
-  if (semitones === 6) {
-    return `1 fret past the <span class="anchor-ref">P4</span>, or 1 fret before the <span class="anchor-ref">P5</span>. Right between them.`;
-  }
-
-  if (semitones >= 8 && semitones <= 11) {
-    const delta = 12 - semitones;
-    return `<em>${delta} fret${delta>1?'s':''} back</em> from the <span class="anchor-ref">octave</span> (2 strings, 2 frets up).`;
+    return `${rootNote} is also at <span class="anchor-ref">fret ${relayDot.fret}</span> on the ${sName(ivlSi)} string — from there it's <em>${fretsBetween} fret${fretsBetween>1?'s':''} ${dir}</em>.`;
   }
 
   return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>.`;

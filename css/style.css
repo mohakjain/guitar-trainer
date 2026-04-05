@@ -29,6 +29,14 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* TOP BAR */
+.top-bar {
+  width: 100%; max-width: 600px;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 12px;
+  position: relative;
+}
+
 h1 {
   font-family: 'DM Sans', sans-serif;
   font-size: 1.4rem;
@@ -41,32 +49,39 @@ h1 {
 .subtitle {
   font-size: 0.7rem;
   color: var(--text-secondary);
-  margin-bottom: 16px;
 }
 
-/* SETTINGS (collapsible) */
-.settings-toggle {
-  width: 100%; max-width: 600px;
-  background: none; border: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.75rem;
-  padding: 10px 12px; cursor: pointer; border-radius: 4px;
-  margin-bottom: 0; transition: border-color 0.15s, color 0.15s;
-  display: flex; justify-content: space-between; align-items: center;
+/* GEAR BUTTON & SETTINGS DROPDOWN */
+.gear-btn {
+  background: none; border: none; color: var(--text-secondary);
+  cursor: pointer; padding: 6px;
+  border-radius: 4px; transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
 }
-.settings-toggle:hover { border-color: var(--accent); color: var(--text); }
-.settings-toggle .arrow { transition: transform 0.2s; font-size: 0.6rem; }
-.settings-toggle.open .arrow { transform: rotate(180deg); }
+.gear-btn:hover, .gear-btn.open { color: var(--accent); background: var(--surface); }
 
-.settings {
-  width: 100%; max-width: 600px;
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 12px; padding: 0;
-  max-height: 0; overflow: hidden;
-  transition: max-height 0.3s ease, padding 0.3s ease;
+.settings-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  z-index: 19;
 }
-.settings.open { max-height: 200px; padding: 12px 0; }
+.settings-overlay.open { display: block; }
+
+.settings-dropdown {
+  display: none;
+  position: absolute; top: 100%; right: 0;
+  width: 280px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.settings-dropdown.open { display: block; }
+
+.setting-group { margin-bottom: 12px; }
+.setting-group:last-child { margin-bottom: 0; }
 .setting-group label {
   display: block;
   font-size: 0.7rem;
@@ -75,7 +90,7 @@ h1 {
 }
 .setting-group select {
   width: 100%;
-  background: var(--surface); border: 1px solid var(--border);
+  background: var(--bg); border: 1px solid var(--border);
   color: var(--text);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.75rem;
@@ -90,8 +105,17 @@ h1 {
   min-width: 30px; text-align: right; font-weight: 600;
 }
 
+.toggle-label {
+  display: flex !important; align-items: center; gap: 8px;
+  cursor: pointer; font-size: 0.75rem !important;
+  color: var(--text) !important;
+}
+.toggle-label input[type=checkbox] {
+  accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer;
+}
+
 /* PROGRESS */
-.progress-wrap { width: 100%; max-width: 600px; margin: 12px 0; }
+.progress-wrap { width: 100%; max-width: 600px; margin: 0 0 12px; }
 .state-label {
   font-size: 0.75rem;
   color: var(--text-secondary);
@@ -111,23 +135,12 @@ h1 {
   width: 1px; background: var(--border);
 }
 .progress-bar-bg::before { left: 50%; }
-.progress-bar-bg::after  { left: 75%; }
+.progress-bar-bg::after  { left: 66%; }
 
 .progress-info {
   display: flex; justify-content: space-between;
   margin-top: 6px; font-size: 0.7rem; color: var(--text-secondary);
 }
-.phase-indicators {
-  display: flex; gap: 14px; justify-content: center;
-  margin-top: 6px; font-size: 0.65rem; color: var(--text-secondary);
-}
-.phase-dot {
-  display: inline-block; width: 7px; height: 7px;
-  border-radius: 50%; margin-right: 5px; vertical-align: middle;
-  background: var(--border); transition: background 0.3s;
-}
-.phase-dot.active-reveal { background: var(--ivl-color); }
-.phase-dot.active-shape  { background: var(--anchor-color); }
 
 /* FRETBOARD */
 .fretboard-wrap {
@@ -146,7 +159,7 @@ h1 {
 }
 .fret-label {
   flex: 1; text-align: center;
-  font-size: 0.6rem; color: var(--text-secondary);
+  font-size: 0.6rem; color: #aaa8a0;
 }
 
 .fb-inner { position: relative; }
@@ -163,71 +176,81 @@ h1 {
 .frets { display: flex; flex: 1; position: relative; }
 .fret-cell {
   flex: 1; height: 32px;
-  border-right: 1px solid #2e2e32;
-  position: relative; display: flex;
-  align-items: center; justify-content: center;
+  position: relative;
+  /* box-shadow for fret lines — no layout impact, so dots center perfectly */
+  box-shadow: 1px 0 0 #4a4a50;
 }
-.fret-cell:first-child { border-left: 4px solid #666; }
+.fret-cell:first-child {
+  box-shadow: inset 4px 0 0 #999, 1px 0 0 #4a4a50;
+}
 
 .string-row::after {
   content: ''; position: absolute;
   left: 28px; right: 0; top: 50%;
   height: 1px;
   background: var(--string-color);
-  opacity: 0.3; pointer-events: none; z-index: 0;
+  opacity: 0.5; pointer-events: none; z-index: 0;
 }
 
 .fret-marker {
   position: absolute; bottom: -12px; left: 50%;
   transform: translateX(-50%);
-  width: 5px; height: 5px; border-radius: 50%; background: #333;
+  width: 5px; height: 5px; border-radius: 50%; background: #555;
 }
 
 .note-dot {
   width: 24px; height: 24px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 0.55rem; font-weight: 600;
-  z-index: 4; position: relative;
-  transition: transform 0.25s ease-out, opacity 0.25s;
-  opacity: 0; transform: scale(0);
+  z-index: 4; position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.25s ease-out, opacity 0.25s, background 0.4s, border-color 0.4s;
+  opacity: 0;
 }
 .note-dot.root {
-  background: var(--root-color); color: #1a1a1d;
+  background: #888; color: #1a1a1d;
 }
 .note-dot.ivl {
-  background: var(--ivl-color); color: #fff;
+  background: #888; color: #fff;
 }
 .note-dot.anchor {
   background: var(--anchor-color); color: #1a1a1d;
-  opacity: 0; transform: scale(0);
+  opacity: 0;
 }
-.note-dot.anchor.visible { opacity: 0.8; transform: scale(0.85); }
+.note-dot.anchor.visible { opacity: 0.8; transform: translate(-50%, -50%) scale(0.85); }
 .note-dot.ghost {
   background: transparent;
-  border: 2px solid var(--ivl-color);
-  color: var(--ivl-color);
-  opacity: 0; transform: scale(0);
+  border: 2px solid currentColor;
+  opacity: 0;
   font-size: 0.45rem;
 }
-.note-dot.ghost.visible { opacity: 0.4; transform: scale(0.8); }
+.note-dot.ghost.visible { opacity: 0.4; transform: translate(-50%, -50%) scale(0.8); }
 .note-dot.ghost-std {
-  background: rgba(212,93,93,0.15);
-  border: 2px solid var(--ivl-color);
-  color: var(--ivl-color);
-  opacity: 0; transform: scale(0);
+  background: transparent;
+  border: 2px solid currentColor;
+  opacity: 0;
   font-size: 0.5rem;
 }
-.note-dot.ghost-std.visible { opacity: 0.7; transform: scale(0.9); }
+.note-dot.ghost-std.visible { opacity: 0.65; transform: translate(-50%, -50%) scale(0.9); }
+/* Reference dot: P4/P5/octave landmark from root */
+.note-dot.ref {
+  background: transparent;
+  border: 2px solid currentColor;
+  opacity: 0;
+  font-size: 0.4rem;
+}
+.note-dot.ref.visible { opacity: 0.75; transform: translate(-50%, -50%) scale(0.75); }
 /* Relay dot: the root note relocated to the interval's string (stepping stone) */
 .note-dot.relay {
   background: var(--root-color);
   color: #1a1a1d;
-  opacity: 0; transform: scale(0);
+  opacity: 0;
   border: 2px dashed var(--root-color);
   font-size: 0.45rem;
 }
-.note-dot.relay.visible { opacity: 0.55; transform: scale(0.85); }
-.note-dot.visible { opacity: 1; transform: scale(1); }
+.note-dot.relay.visible { opacity: 0.55; transform: translate(-50%, -50%) scale(0.85); }
+.note-dot.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
 /* SVG connector overlay */
 #connectorSvg {
@@ -266,45 +289,50 @@ h1 {
 
 .info-card {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 4px; padding: 10px; text-align: center;
+  border-radius: 4px; padding: 6px 8px; text-align: center;
 }
 .info-card .lbl {
   font-size: 0.6rem; color: var(--text-secondary);
-  text-transform: uppercase; margin-bottom: 3px;
+  text-transform: uppercase; margin-bottom: 2px;
   letter-spacing: 0.08em;
 }
 .info-card .val {
   font-family: 'DM Sans', sans-serif;
-  font-size: 1.5rem; font-weight: 700; line-height: 1;
+  font-size: 1.1rem; font-weight: 700; line-height: 1;
 }
 .info-card .sub {
-  font-size: 0.65rem; color: var(--text-secondary);
-  margin-top: 3px; line-height: 1.3;
+  font-size: 0.6rem; color: var(--text-secondary);
+  margin-top: 2px; line-height: 1.3;
 }
-.root-card .val { color: var(--root-color); }
-.note-card .val { color: var(--ivl-color); }
+.root-card .val { color: var(--text); transition: color 0.4s; }
+.note-card .val { color: var(--text); transition: color 0.4s; }
 
 /* ANSWER CARD */
 .answer-card {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 4px; padding: 10px; text-align: center;
+  border-radius: 4px; padding: 6px 8px; text-align: center;
   transition: opacity 0.4s, border-color 0.4s;
 }
 .answer-card.hidden   { opacity: 0.15; }
-.answer-card.revealed { opacity: 1; border-color: var(--ivl-color); }
-.answer-card.shaped   { border-color: var(--anchor-color); }
+.answer-card.revealed { opacity: 1; }
+.answer-card.shaped   { }
 
 .ans-name {
   font-family: 'DM Sans', sans-serif;
-  font-size: 1.2rem; font-weight: 700; color: var(--text);
+  font-size: 1rem; font-weight: 700; color: var(--text);
   line-height: 1;
 }
+.ans-sound {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem; font-weight: 600; color: var(--accent);
+  line-height: 1; margin-top: 3px;
+}
 .ans-semi {
-  font-size: 0.65rem; color: var(--text-secondary); margin-top: 3px;
+  font-size: 0.6rem; color: var(--text-secondary); margin-top: 2px;
 }
 .ans-hint {
-  font-size: 0.6rem; color: var(--text-secondary);
-  text-transform: uppercase; margin-top: 3px; opacity: 0.5;
+  font-size: 0.55rem; color: var(--text-secondary);
+  text-transform: uppercase; margin-top: 2px; opacity: 0.5;
 }
 
 /* SHAPE EXPLANATION */
@@ -389,6 +417,8 @@ h1 {
   .note-dot { width: 20px; height: 20px; font-size: 0.45rem; }
   .string-row { height: 28px; }
   .fret-cell { height: 28px; }
-  .info-card .val { font-size: 1.3rem; }
-  .ans-name { font-size: 1rem; }
+  .info-card .val { font-size: 1rem; }
+  .ans-name { font-size: 0.9rem; }
+  .ans-sound { font-size: 0.85rem; }
+  .settings-dropdown { width: 260px; }
 }
