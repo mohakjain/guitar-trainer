@@ -35,6 +35,7 @@ const els = {
   settingsToggle:$('settingsToggle'),
   settingsOverlay:$('settingsOverlay'),
   noUnisonToggle:$('noUnisonToggle'),
+  descendingToggle:$('descendingToggle'),
 };
 
 // ── State ───────────────────────────────────────────────────────────────────
@@ -66,6 +67,7 @@ function saveSettings() {
       mode: els.modeSelect.value,
       speed: els.speedSlider.value,
       noUnison: els.noUnisonToggle.checked,
+      descending: els.descendingToggle.checked,
     }));
   } catch(e) {}
 }
@@ -80,6 +82,7 @@ function loadSettings() {
         els.speedLabel.textContent = s.speed + 's';
       }
       if (s.noUnison) els.noUnisonToggle.checked = s.noUnison;
+      if (s.descending) els.descendingToggle.checked = s.descending;
     }
   } catch(e) {}
 }
@@ -123,6 +126,7 @@ function nextInterval() {
   els.countLabel.textContent = count + ' played';
 
   const pair = generatePair(getMode(), { noUnison: els.noUnisonToggle.checked });
+  const isDescending = els.descendingToggle.checked && Math.random() < 0.5;
 
   // Show dots
   showDot(pair.root.si, pair.root.fret, 'root', pair.root.note);
@@ -135,9 +139,12 @@ function nextInterval() {
   els.rootPos.textContent = `${sn(pair.root.si)} str · fret ${pair.root.fret}`;
   els.notePos.textContent = `${sn(pair.interval.si)} str · fret ${pair.interval.fret}`;
 
-  // Play: root then interval
-  playNote(pair.root.si, pair.root.fret, 0, 1.4);
-  playNote(pair.interval.si, pair.interval.fret, 0.5, 1.4);
+  // Play: root then interval (or reversed for descending)
+  const [first, second] = isDescending
+    ? [pair.interval, pair.root]
+    : [pair.root, pair.interval];
+  playNote(first.si, first.fret, 0, 1.4);
+  playNote(second.si, second.fret, 0.5, 1.4);
 
   const dur = getSpeed();
   progStart = Date.now();
@@ -149,7 +156,7 @@ function nextInterval() {
     if (!playing) return;
     els.answerCard.className = 'answer-card revealed';
     els.answerCard.style.borderColor = pair.info.color;
-    els.intervalName.textContent = pair.info.name;
+    els.intervalName.textContent = (isDescending ? '↓ ' : '') + pair.info.name;
     els.intervalSound.textContent = pair.info.sound;
     els.intervalSemi.textContent = pair.semitones + ' semitone' + (pair.semitones !== 1 ? 's' : '');
     els.ansHint.textContent = '';
@@ -160,9 +167,14 @@ function nextInterval() {
     els.rootDisplay.style.color = rootColor;
     els.noteDisplay.style.color = pair.info.color;
     els.intervalSound.style.color = pair.info.color;
-    // Replay both together
-    playNote(pair.root.si, pair.root.fret, 0, 1.8);
-    playNote(pair.interval.si, pair.interval.fret, 0, 1.8);
+    // Replay: sequenced again for descending, together for ascending
+    if (isDescending) {
+      playNote(pair.interval.si, pair.interval.fret, 0, 1.8);
+      playNote(pair.root.si, pair.root.fret, 0.5, 1.8);
+    } else {
+      playNote(pair.root.si, pair.root.fret, 0, 1.8);
+      playNote(pair.interval.si, pair.interval.fret, 0, 1.8);
+    }
   }, dur * 0.5);
 
   // Phase 2: show shape + references at 66%
@@ -313,6 +325,7 @@ els.speedSlider.addEventListener('input', () => {
 els.modeSelect.addEventListener('change', saveSettings);
 els.speedSlider.addEventListener('change', saveSettings);
 els.noUnisonToggle.addEventListener('change', saveSettings);
+els.descendingToggle.addEventListener('change', saveSettings);
 
 // Expose to onclick handlers in HTML
 window.togglePlay = togglePlay;
