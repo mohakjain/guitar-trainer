@@ -91,6 +91,30 @@ function pickWeightedCandidate(cands, rootSi, rootFret, semitones) {
   return scored[scored.length - 1].candidate;
 }
 
+// Generate a random root + interval pair on a piano roll (C3–B4)
+const PIANO_LO = 48; // C3
+const PIANO_HI = 71; // B4
+
+export function generatePianoPair(mode, opts = {}) {
+  let allowed = MODE_INTERVALS[mode];
+  if (opts.noUnison) allowed = allowed.filter(s => s !== 0);
+  if (!allowed.length) allowed = MODE_INTERVALS[mode];
+  const semi = rnd(allowed);
+  const info = INTERVALS[semi];
+  // Pick root so that root + semi stays in range
+  const maxRoot = PIANO_HI - semi;
+  if (maxRoot < PIANO_LO) return generatePianoPair(mode, opts); // interval too wide, retry
+  const rootMidi = PIANO_LO + Math.floor(Math.random() * (maxRoot - PIANO_LO + 1));
+  const ivlMidi = rootMidi + semi;
+  const pname = m => NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1);
+  return {
+    root:     { midi: rootMidi, note: pname(rootMidi) },
+    interval: { midi: ivlMidi,  note: pname(ivlMidi) },
+    info,
+    semitones: semi,
+  };
+}
+
 // Generate a random root + interval pair for the given mode
 export function generatePair(mode, opts = {}) {
   let allowed = MODE_INTERVALS[mode];

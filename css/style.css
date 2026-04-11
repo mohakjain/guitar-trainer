@@ -209,10 +209,10 @@ h1 {
   opacity: 0;
 }
 .note-dot.root {
-  background: #888; color: #1a1a1d;
+  background: var(--root-color); color: #1a1a1d;
 }
 .note-dot.ivl {
-  background: #888; color: #fff;
+  background: var(--ivl-color); color: #1a1a1d;
 }
 .note-dot.anchor {
   background: var(--anchor-color); color: #1a1a1d;
@@ -408,6 +408,64 @@ h1 {
 .btn.danger { border-color: #c44; color: #c44; }
 .btn.danger:hover { background: #c44; color: #1a1a1d; }
 
+/* PIANO ROLL */
+.pianoroll-wrap {
+  width: 100%; max-width: 600px;
+  background: var(--fret-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 0;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.pianoroll-grid {
+  display: flex; flex-direction: column;
+}
+.pr-row {
+  display: flex; align-items: center;
+  height: 18px;
+  border-bottom: 1px solid #2a2a2e;
+}
+.pr-row.black-key {
+  background: #151517;
+}
+.pr-label {
+  width: 40px; text-align: right; padding-right: 8px;
+  font-size: 0.55rem; color: var(--text-secondary);
+  flex-shrink: 0;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.pr-row.black-key .pr-label { color: #666; }
+.pr-bar-area {
+  flex: 1; position: relative; height: 100%;
+}
+.pr-bar {
+  position: absolute; top: 1px; bottom: 1px;
+  left: 8px; right: 8px;
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.5rem; font-weight: 600;
+  opacity: 0; transform: scaleX(0);
+  transform-origin: left center;
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out, background 0.4s;
+}
+.pr-bar.visible {
+  opacity: 1; transform: scaleX(1);
+}
+.pr-bar.root {
+  background: var(--root-color); color: #1a1a1d;
+}
+.pr-bar.ivl {
+  background: var(--ivl-color); color: #1a1a1d;
+}
+.pr-bar.ref {
+  background: transparent;
+  border: 1.5px solid currentColor;
+  opacity: 0;
+  font-size: 0.45rem;
+}
+.pr-bar.ref.visible { opacity: 0.4; transform: scaleX(1); }
+
 @media (max-width: 420px) {
   body { padding: 14px 6px 28px; }
   .fretboard-wrap { padding: 10px 4px 16px; }
@@ -421,4 +479,7 @@ h1 {
   .ans-name { font-size: 0.9rem; }
   .ans-sound { font-size: 0.85rem; }
   .settings-dropdown { width: 260px; }
+  .pr-row { height: 14px; }
+  .pr-label { width: 34px; font-size: 0.5rem; padding-right: 6px; }
+  .pr-bar { font-size: 0.4rem; }
 }

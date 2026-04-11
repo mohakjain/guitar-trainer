@@ -11,9 +11,8 @@ function getAudio() {
   return audioCtx;
 }
 
-export function playNote(si, fret, delay, dur) {
+function synthNote(freq, delay, dur) {
   const ctx = getAudio();
-  const freq = 440 * Math.pow(2, (SMIDI[si] + fret - 69) / 12);
   const now = ctx.currentTime + delay;
 
   // Main tone — triangle for warmth
@@ -53,4 +52,12 @@ export function playNote(si, fret, delay, dur) {
   g3.connect(ctx.destination);
   o3.start(now);
   o3.stop(now + dur * 0.3);
+}
+
+export function playNote(si, fret, delay, dur) {
+  synthNote(440 * Math.pow(2, (SMIDI[si] + fret - 69) / 12), delay, dur);
+}
+
+export function playMidi(midi, delay, dur) {
+  synthNote(440 * Math.pow(2, (midi - 69) / 12), delay, dur);
 }

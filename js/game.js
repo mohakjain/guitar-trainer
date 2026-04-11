@@ -1,9 +1,10 @@
 // ── Game loop, settings, wake lock ───────────────────────────────────────────
 
-import { OPEN_STRINGS, generatePair } from './music.js';
+import { OPEN_STRINGS, INTERVALS, generatePair, generatePianoPair } from './music.js';
 import { getShapeInfo, findReferenceDots } from './pedagogy.js';
 import { buildFretboard, clearDots, showDot, colorDot, drawConnector, clearConnector } from './fretboard.js';
-import { playNote } from './audio.js';
+import { buildPianoRoll, showBar, colorBar, showRefBar, clearBars } from './pianoroll.js';
+import { playNote, playMidi } from './audio.js';
 
 // ── DOM refs (cached once) ──────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -36,6 +37,9 @@ const els = {
   settingsOverlay:$('settingsOverlay'),
   noUnisonToggle:$('noUnisonToggle'),
   descendingToggle:$('descendingToggle'),
+  instrumentSelect:$('instrumentSelect'),
+  fretboardWrap:$('fretboardWrap'),
+  pianorollWrap:$('pianorollWrap'),
 };
 
 // ── State ───────────────────────────────────────────────────────────────────
@@ -46,6 +50,7 @@ let wakeLock = null;
 
 function getMode()  { return els.modeSelect.value; }
 function getSpeed() { return parseInt(els.speedSlider.value) * 1000; }
+const isPiano = () => els.instrumentSelect.value === 'piano';
 
 // ── Wake Lock ───────────────────────────────────────────────────────────────
 async function requestWakeLock() {
@@ -68,6 +73,7 @@ function saveSettings() {
       speed: els.speedSlider.value,
       noUnison: els.noUnisonToggle.checked,
       descending: els.descendingToggle.checked,
+      instrument: els.instrumentSelect.value,
     }));
   } catch(e) {}
 }
@@ -83,11 +89,21 @@ function loadSettings() {
       }
       if (s.noUnison) els.noUnisonToggle.checked = s.noUnison;
       if (s.descending) els.descendingToggle.checked = s.descending;
+      if (s.instrument) {
+        els.instrumentSelect.value = s.instrument;
+        applyInstrumentVisibility();
+      }
     }
   } catch(e) {}
 }
 
 // ── UI helpers ──────────────────────────────────────────────────────────────
+function applyInstrumentVisibility() {
+  const piano = isPiano();
+  els.fretboardWrap.style.display = piano ? 'none' : '';
+  els.pianorollWrap.style.display = piano ? '' : 'none';
+}
+
 function resetPhaseIndicators() {
 }
 
@@ -108,6 +124,7 @@ function resetCards() {
   els.intervalSound.style.color = '';
   els.intervalSemi.textContent = '—';
   els.shapeCard.className = 'shape-card hidden';
+  els.shapeCard.style.display = isPiano() ? 'none' : '';
   els.shapeText.innerHTML = '—';
   els.shapeHint.textContent = '';
   els.rootDisplay.style.color = '';
@@ -117,34 +134,53 @@ function resetCards() {
 // ── Core game loop ──────────────────────────────────────────────────────────
 function nextInterval() {
   clearTimers();
-  clearDots();
-  clearConnector();
+  if (isPiano()) { clearBars(); } else { clearDots(); clearConnector(); }
   resetPhaseIndicators();
   resetCards();
 
   count++;
   els.countLabel.textContent = count + ' played';
 
-  const pair = generatePair(getMode(), { noUnison: els.noUnisonToggle.checked });
+  const piano = isPiano();
+  const opts = { noUnison: els.noUnisonToggle.checked };
+  const pair = piano
+    ? generatePianoPair(getMode(), opts)
+    : generatePair(getMode(), opts);
   const isDescending = els.descendingToggle.checked && Math.random() < 0.5;
 
-  // Show dots
-  showDot(pair.root.si, pair.root.fret, 'root', pair.root.note);
-  showDot(pair.interval.si, pair.interval.fret, 'ivl', pair.interval.note);
+  // Display aliases: for descending, root = higher note, interval = lower
+  const dRoot = isDescending ? pair.interval : pair.root;
+  const dIvl  = isDescending ? pair.root     : pair.interval;
+
+  // Show dots / bars
+  if (piano) {
+    showBar(dRoot.midi, 'root', dRoot.note);
+    showBar(dIvl.midi, 'ivl', dIvl.note);
+  } else {
+    showDot(dRoot.si, dRoot.fret, 'root', dRoot.note);
+    showDot(dIvl.si, dIvl.fret, 'ivl', dIvl.note);
+  }
 
   // Update info cards
-  els.rootDisplay.textContent = pair.root.note;
-  els.noteDisplay.textContent = pair.interval.note;
-  const sn = si => OPEN_STRINGS[si].name;
-  els.rootPos.textContent = `${sn(pair.root.si)} str · fret ${pair.root.fret}`;
-  els.notePos.textContent = `${sn(pair.interval.si)} str · fret ${pair.interval.fret}`;
+  els.rootDisplay.textContent = dRoot.note;
+  els.noteDisplay.textContent = dIvl.note;
+  if (piano) {
+    els.rootPos.textContent = '';
+    els.notePos.textContent = '';
+  } else {
+    const sn = si => OPEN_STRINGS[si].name;
+    els.rootPos.textContent = `${sn(dRoot.si)} str · fret ${dRoot.fret}`;
+    els.notePos.textContent = `${sn(dIvl.si)} str · fret ${dIvl.fret}`;
+  }
 
-  // Play: root then interval (or reversed for descending)
-  const [first, second] = isDescending
-    ? [pair.interval, pair.root]
-    : [pair.root, pair.interval];
-  playNote(first.si, first.fret, 0, 1.4);
-  playNote(second.si, second.fret, 0.5, 1.4);
+  // Play: root (display) first, then interval
+  if (piano) {
+    playMidi(dRoot.midi, 0, 1.4);
+    playMidi(dIvl.midi, 0.5, 1.4);
+  } else {
+    playNote(dRoot.si, dRoot.fret, 0, 1.4);
+    playNote(dIvl.si, dIvl.fret, 0.5, 1.4);
+  }
 
   const dur = getSpeed();
   progStart = Date.now();
@@ -158,22 +194,27 @@ function nextInterval() {
     els.answerCard.style.borderColor = pair.info.color;
     els.intervalName.textContent = (isDescending ? '↓ ' : '') + pair.info.name;
     els.intervalSound.textContent = pair.info.sound;
-    els.intervalSemi.textContent = pair.semitones + ' semitone' + (pair.semitones !== 1 ? 's' : '');
+    els.intervalSemi.textContent = Math.abs(pair.semitones) + ' semitone' + (pair.semitones !== 1 ? 's' : '');
     els.ansHint.textContent = '';
-    // Reveal interval colors on dots and cards
+    // Reveal interval colors
     const rootColor = pair.semitones === 0 ? pair.info.color : '#e09f5a';
-    colorDot(pair.root.si, pair.root.fret, rootColor, '#1a1a1d');
-    colorDot(pair.interval.si, pair.interval.fret, pair.info.color, '#1a1a1d');
+    if (piano) {
+      colorBar(dRoot.midi, rootColor);
+      colorBar(dIvl.midi, pair.info.color);
+    } else {
+      colorDot(dRoot.si, dRoot.fret, rootColor, '#1a1a1d');
+      colorDot(dIvl.si, dIvl.fret, pair.info.color, '#1a1a1d');
+    }
     els.rootDisplay.style.color = rootColor;
     els.noteDisplay.style.color = pair.info.color;
     els.intervalSound.style.color = pair.info.color;
-    // Replay: sequenced again for descending, together for ascending
-    if (isDescending) {
-      playNote(pair.interval.si, pair.interval.fret, 0, 1.8);
-      playNote(pair.root.si, pair.root.fret, 0.5, 1.8);
+    // Replay: sequenced for descending, together for ascending
+    if (piano) {
+      playMidi(dRoot.midi, 0, 1.8);
+      playMidi(dIvl.midi, isDescending ? 0.5 : 0, 1.8);
     } else {
-      playNote(pair.root.si, pair.root.fret, 0, 1.8);
-      playNote(pair.interval.si, pair.interval.fret, 0, 1.8);
+      playNote(dRoot.si, dRoot.fret, 0, 1.8);
+      playNote(dIvl.si, dIvl.fret, isDescending ? 0.5 : 0, 1.8);
     }
   }, dur * 0.5);
 
@@ -182,56 +223,68 @@ function nextInterval() {
     if (!playing) return;
     els.answerCard.className = 'answer-card shaped';
 
-    const shapeInfo = getShapeInfo(
-      pair.semitones,
-      pair.root.si, pair.root.fret,
-      pair.interval.si, pair.interval.fret
-    );
+    if (piano) {
+      // Reference landmarks on the piano roll
+      const REFS = [
+        { semi: 5, label: 'P4' },
+        { semi: 7, label: 'P5' },
+        { semi: 12, label: '8ve' },
+      ];
+      for (const ref of REFS) {
+        const m = pair.root.midi + ref.semi;
+        if (m >= 48 && m <= 71 && m !== pair.root.midi && m !== pair.interval.midi) {
+          showRefBar(m, ref.label, INTERVALS[ref.semi].color);
+        }
+      }
+    } else {
+      const shapeSemi = isDescending ? -pair.semitones : pair.semitones;
+      const shapeInfo = getShapeInfo(
+        shapeSemi,
+        dRoot.si, dRoot.fret,
+        dIvl.si, dIvl.fret
+      );
 
-    els.shapeCard.className = 'shape-card visible';
-    els.shapeText.innerHTML = shapeInfo.text;
-    els.shapeHint.textContent = shapeInfo.hint;
+      els.shapeCard.className = 'shape-card visible';
+      els.shapeText.innerHTML = shapeInfo.text;
+      els.shapeHint.textContent = shapeInfo.hint;
 
-    // Show ghost dots — other voicings of this interval, colored by interval
-    if (shapeInfo.ghostDots) {
-      shapeInfo.ghostDots.forEach(g => {
-        const type = g.isStandard ? 'ghost-std' : 'ghost';
-        showDot(g.si, g.fret, type, g.label);
-        colorDot(g.si, g.fret, null, pair.info.color, pair.info.color);
+      if (shapeInfo.ghostDots) {
+        shapeInfo.ghostDots.forEach(g => {
+          const type = g.isStandard ? 'ghost-std' : 'ghost';
+          showDot(g.si, g.fret, type, g.label);
+          colorDot(g.si, g.fret, null, pair.info.color, pair.info.color);
+        });
+      }
+
+      const refDots = findReferenceDots(
+        dRoot.si, dRoot.fret,
+        dIvl.si, dIvl.fret
+      );
+      const isNear = r => {
+        const dRoot2 = Math.abs(r.si - dRoot.si);
+        const dIvl2 = Math.abs(r.si - dIvl.si);
+        return Math.min(dRoot2, dIvl2) <= 2;
+      };
+      const isGhost = r => shapeInfo.ghostDots?.some(g => g.si === r.si && g.fret === r.fret);
+
+      refDots.filter(r => isNear(r) && !isGhost(r)).forEach(r => {
+        showDot(r.si, r.fret, 'ref', r.label);
+        colorDot(r.si, r.fret, null, r.color, r.color);
       });
+
+      if (shapeInfo.relayDot) {
+        showDot(shapeInfo.relayDot.si, shapeInfo.relayDot.fret, 'relay', shapeInfo.relayDot.label);
+      }
+
+      drawConnector(dRoot.si, dRoot.fret, dIvl.si, dIvl.fret, shapeInfo.anchorDot);
+
+      pair._farRefs = refDots.filter(r => !isNear(r) && !isGhost(r));
     }
-
-    // Show near reference landmarks (within 2 strings of root or interval)
-    const refDots = findReferenceDots(
-      pair.root.si, pair.root.fret,
-      pair.interval.si, pair.interval.fret
-    );
-    const isNear = r => {
-      const dRoot = Math.abs(r.si - pair.root.si);
-      const dIvl = Math.abs(r.si - pair.interval.si);
-      return Math.min(dRoot, dIvl) <= 2;
-    };
-    const isGhost = r => shapeInfo.ghostDots?.some(g => g.si === r.si && g.fret === r.fret);
-
-    refDots.filter(r => isNear(r) && !isGhost(r)).forEach(r => {
-      showDot(r.si, r.fret, 'ref', r.label);
-      colorDot(r.si, r.fret, null, r.color, r.color);
-    });
-
-    // Show relay dot — the root relocated to the interval's string
-    if (shapeInfo.relayDot) {
-      showDot(shapeInfo.relayDot.si, shapeInfo.relayDot.fret, 'relay', shapeInfo.relayDot.label);
-    }
-
-    drawConnector(pair.root.si, pair.root.fret, pair.interval.si, pair.interval.fret, shapeInfo.anchorDot);
-
-    // Stash far refs for the 75% phase
-    pair._farRefs = refDots.filter(r => !isNear(r) && !isGhost(r));
   }, dur * 0.66);
 
-  // Phase 3: show far reference dots at 75%
+  // Phase 3: show far reference dots at 75% (guitar only)
   t_far = setTimeout(() => {
-    if (!playing) return;
+    if (!playing || piano) return;
     if (pair._farRefs) {
       pair._farRefs.forEach(r => {
         showDot(r.si, r.fret, 'ref', r.label);
@@ -278,8 +331,7 @@ function pauseAll() {
 function stopAll() {
   playing = false;
   clearTimers();
-  clearDots();
-  clearConnector();
+  if (isPiano()) { clearBars(); } else { clearDots(); clearConnector(); }
   resetPhaseIndicators();
   releaseWakeLock();
   count = 0;
@@ -317,6 +369,8 @@ function closeSettings() {
 // ── Init ────────────────────────────────────────────────────────────────────
 loadSettings();
 buildFretboard();
+buildPianoRoll();
+applyInstrumentVisibility();
 
 // Event listeners
 els.speedSlider.addEventListener('input', () => {
@@ -326,6 +380,11 @@ els.modeSelect.addEventListener('change', saveSettings);
 els.speedSlider.addEventListener('change', saveSettings);
 els.noUnisonToggle.addEventListener('change', saveSettings);
 els.descendingToggle.addEventListener('change', saveSettings);
+els.instrumentSelect.addEventListener('change', () => {
+  saveSettings();
+  applyInstrumentVisibility();
+  if (playing) stopAll();
+});
 
 // Expose to onclick handlers in HTML
 window.togglePlay = togglePlay;

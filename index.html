@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Interval Trainer</title>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
 
@@ -18,6 +18,13 @@
   </button>
   <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()"></div>
   <div class="settings-dropdown" id="settingsPanel">
+    <div class="setting-group">
+      <label>Instrument</label>
+      <select id="instrumentSelect">
+        <option value="guitar">Guitar</option>
+        <option value="piano">Piano roll</option>
+      </select>
+    </div>
     <div class="setting-group">
       <label>Interval set</label>
       <select id="modeSelect">
@@ -60,11 +67,15 @@
   </div>
 </div>
 
-<div class="fretboard-wrap">
+<div class="fretboard-wrap" id="fretboardWrap">
   <div class="fret-labels" id="fretLabels"></div>
   <div class="fb-inner" id="fbInner">
     <svg id="connectorSvg"></svg>
   </div>
+</div>
+
+<div class="pianoroll-wrap" id="pianorollWrap" style="display:none">
+  <div class="pianoroll-grid" id="pianorollGrid"></div>
 </div>
 
 <div class="info-row">
@@ -94,8 +105,8 @@
 </div>
 
 <div class="legend">
-  <span><span class="ldot" style="background:#888"></span>Root</span>
-  <span><span class="ldot" style="background:#888"></span>Interval</span>
+  <span><span class="ldot" style="background:var(--accent)"></span>Root</span>
+  <span><span class="ldot" style="background:var(--ivl-color)"></span>Interval</span>
   <span><span class="ldot" style="background:transparent;border:2px solid var(--anchor-color)"></span>Landmarks</span>
 </div>
 

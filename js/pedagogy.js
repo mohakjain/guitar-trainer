@@ -67,6 +67,8 @@ function findRootOnString(rootSi, rootFret, targetSi) {
 }
 
 export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
+  const absSemi = Math.abs(semitones);
+  const sign = semitones < 0 ? -1 : 1;
   const strDiff = ivlSi - rootSi;
   const fretDiff = ivlFret - rootFret;
   const absStr = Math.abs(strDiff);
@@ -80,18 +82,18 @@ export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
     .map(v => ({
       si: v.si,
       fret: v.fret,
-      label: INTERVALS[semitones].short,
-      isStandard: isStandardGhost(v, rootSi, rootFret, semitones),
+      label: INTERVALS[absSemi].short,
+      isStandard: isStandardGhost(v, rootSi, rootFret, absSemi),
     }));
 
   // Anchor dot for non-anchor intervals
   let anchorDot = null;
-  if (semitones >= 1 && semitones <= 4) {
-    anchorDot = findAnchorDot(rootSi, rootFret, 5, 'P4');
-  } else if (semitones === 6) {
-    anchorDot = findAnchorDot(rootSi, rootFret, 7, 'P5');
-  } else if (semitones >= 8 && semitones <= 11) {
-    anchorDot = findAnchorDot(rootSi, rootFret, 12, '8ve');
+  if (absSemi >= 1 && absSemi <= 4) {
+    anchorDot = findAnchorDot(rootSi, rootFret, 5 * sign, 'P4');
+  } else if (absSemi === 6) {
+    anchorDot = findAnchorDot(rootSi, rootFret, 7 * sign, 'P5');
+  } else if (absSemi >= 8 && absSemi <= 11) {
+    anchorDot = findAnchorDot(rootSi, rootFret, 12 * sign, '8ve');
   }
 
   // Remove anchor if it overlaps
@@ -107,7 +109,7 @@ export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
   // This teaches "relocate, then count frets."
   let relayDot = null;
   const isLongDistance = absStr >= 1 && absFret > 4;
-  const isNonTrivial = semitones > 0 && semitones < 12;
+  const isNonTrivial = absSemi > 0 && absSemi < 12;
 
   if (isLongDistance && isNonTrivial) {
     const relayFret = findRootOnString(rootSi, rootFret, ivlSi);
@@ -119,8 +121,8 @@ export function getShapeInfo(semitones, rootSi, rootFret, ivlSi, ivlFret) {
     }
   }
 
-  const text = buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi, rootFret, ivlSi, ivlFret);
-  const hint = buildHint(semitones, hasBG);
+  const text = buildText(absSemi, sign, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi, rootFret, ivlSi, ivlFret);
+  const hint = buildHint(absSemi, hasBG);
 
   return { text, hint, ghostDots, anchorDot, relayDot };
 }
@@ -160,14 +162,14 @@ function findAnchorDot(rootSi, rootFret, anchorSemitones, label) {
   return { si: candidates[0].si, fret: candidates[0].fret, label };
 }
 
-function isStandardGhost(v, rootSi, rootFret, semitones) {
+function isStandardGhost(v, rootSi, rootFret, absSemi) {
   const sd = Math.abs(v.si - rootSi);
-  if (semitones === 12) return sd === 2;
-  if (semitones === 5 || semitones === 7) return sd === 1;
+  if (absSemi === 12) return sd === 2;
+  if (absSemi === 5 || absSemi === 7) return sd === 1;
   return sd === 1 && Math.abs(v.fret - rootFret) <= 3;
 }
 
-function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi, rootFret, ivlSi, ivlFret) {
+function buildText(semitones, sign, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi, rootFret, ivlSi, ivlFret) {
   const absFret = Math.abs(fretDiff);
   const sName = si => OPEN_STRINGS[si].name;
 
@@ -182,10 +184,9 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi
   // ── P4 ──
   if (semitones === 5) {
     if (absStr === 1 && absFret <= 1) {
-      return `One string, ${fretDiff === 0 ? 'same fret' : '1 fret up'}. <em>This is the standard P4 shape</em> — how the guitar is tuned.${bgNote}`;
+      return `One string, ${fretDiff === 0 ? 'same fret' : describeFretDiff(fretDiff)}. <em>This is the standard P4 shape</em> — how the guitar is tuned.${bgNote}`;
     }
-    // Non-standard voicing — find the nearest standard P4 to reference
-    const stdP4 = findNearestVoicing(rootSi, rootFret, 5);
+    const stdP4 = findNearestVoicing(rootSi, rootFret, 5 * sign);
     if (stdP4) {
       return `The standard P4 is at <span class="anchor-ref">${sName(stdP4.si)} string fret ${stdP4.fret}</span> (one string, same fret). This is the same note at a different position.`;
     }
@@ -197,7 +198,7 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi
     if (absStr === 1 && absFret <= 2) {
       return `One string, ${describeFretDiff(fretDiff)}. <em>This is the power chord shape.</em>${bgNote}`;
     }
-    const stdP5 = findNearestVoicing(rootSi, rootFret, 7);
+    const stdP5 = findNearestVoicing(rootSi, rootFret, 7 * sign);
     if (stdP5) {
       return `The standard P5 is at <span class="anchor-ref">${sName(stdP5.si)} string fret ${stdP5.fret}</span> (one string, 2 frets back). This is the same note at a different position.`;
     }
@@ -207,9 +208,9 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi
   // ── Octave ──
   if (semitones === 12) {
     if (absStr <= 2 && absFret <= 3) {
-      return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>. Same note, one octave higher.${bgNote}`;
+      return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>. Same note, one octave ${sign > 0 ? 'higher' : 'lower'}.${bgNote}`;
     }
-    const stdOct = findNearestVoicing(rootSi, rootFret, 12);
+    const stdOct = findNearestVoicing(rootSi, rootFret, 12 * sign);
     if (stdOct) {
       return `The nearest octave is at <span class="anchor-ref">${sName(stdOct.si)} string fret ${stdOct.fret}</span> (2 strings, 2 frets up). This is the same note at a different position.`;
     }
@@ -224,17 +225,15 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi
   // ── Non-anchor intervals ──
   // Describe relative to nearest landmark (P4, P5, or octave)
   if (semitones >= 1 && semitones <= 4) {
-    // Close to P4 — describe as offset from it
-    const nearP4 = findNearestVoicing(rootSi, rootFret, 5);
+    const nearP4 = findNearestVoicing(rootSi, rootFret, 5 * sign);
     if (nearP4 && absStr <= 2) {
-      const delta = 5 - semitones;
-      return `Find the <span class="anchor-ref">P4</span> at ${sName(nearP4.si)} string fret ${nearP4.fret}, then go <em>${delta} fret${delta>1?'s':''} back</em>.`;
+      return `Find the <span class="anchor-ref">P4</span> at ${sName(nearP4.si)} string fret ${nearP4.fret}, then go <em>${describeFretDiff(ivlFret - nearP4.fret)}</em>.`;
     }
   }
 
   if (semitones === 6) {
-    const nearP4 = findNearestVoicing(rootSi, rootFret, 5);
-    const nearP5 = findNearestVoicing(rootSi, rootFret, 7);
+    const nearP4 = findNearestVoicing(rootSi, rootFret, 5 * sign);
+    const nearP5 = findNearestVoicing(rootSi, rootFret, 7 * sign);
     if (nearP4 && nearP5) {
       return `Halfway between <span class="anchor-ref">P4</span> (fret ${nearP4.fret}) and <span class="anchor-ref">P5</span> (fret ${nearP5.fret}) on ${sName(nearP4.si)} string.`;
     }
@@ -242,11 +241,9 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi
   }
 
   if (semitones >= 8 && semitones <= 11) {
-    // Close to octave — describe as offset from it
-    const nearOct = findNearestVoicing(rootSi, rootFret, 12);
+    const nearOct = findNearestVoicing(rootSi, rootFret, 12 * sign);
     if (nearOct && absStr <= 3) {
-      const delta = 12 - semitones;
-      return `Find the <span class="anchor-ref">octave</span> at ${sName(nearOct.si)} string fret ${nearOct.fret}, then go <em>${delta} fret${delta>1?'s':''} back</em>.`;
+      return `Find the <span class="anchor-ref">octave</span> at ${sName(nearOct.si)} string fret ${nearOct.fret}, then go <em>${describeFretDiff(ivlFret - nearOct.fret)}</em>.`;
     }
   }
 
@@ -259,14 +256,6 @@ function buildText(semitones, absStr, strDiff, fretDiff, hasBG, relayDot, rootSi
   }
 
   return `<em>${absStr} string${absStr>1?'s':''}, ${describeFretDiff(fretDiff)}</em>.`;
-}
-
-// When showing a non-standard voicing, add relay context if available
-function withRelay(standardDesc, relayDot, semitones) {
-  if (relayDot) {
-    return `${standardDesc} Here, find the root at <span class="anchor-ref">fret ${relayDot.fret}</span> on the same string first.`;
-  }
-  return standardDesc;
 }
 
 function describeFretDiff(fretDiff) {
